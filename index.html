@@ -920,7 +920,18 @@ document.getElementById('processImageBtn').addEventListener('click', async ()=>{
     const { data, error } = await sb.functions.invoke('read-attendance', {
       body: { mimeType, data: base64, prompt }
     });
-    if (error) throw new Error(error.message || 'เรียก Edge Function ไม่สำเร็จ');
+    if (error){
+      // error.message ของ supabase-js มักเป็นข้อความ generic เช่น
+      // "Edge Function returned a non-2xx status code" — ต้องอ่าน body จริงจาก error.context
+      let detail = error.message || 'เรียก Edge Function ไม่สำเร็จ';
+      if (error.context && typeof error.context.json === 'function'){
+        try{
+          const body = await error.context.json();
+          detail = body.error || JSON.stringify(body);
+        }catch(_){ /* body อ่านไม่ได้ ใช้ detail เดิม */ }
+      }
+      throw new Error(detail);
+    }
     if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gemini API error'));
 
     const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
