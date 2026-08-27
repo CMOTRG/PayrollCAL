@@ -420,7 +420,7 @@
 // แก้ 2 บรรทัดนี้เป็นค่าจากโปรเจกต์ Supabase ของคุณ (Settings → API)
 const SUPABASE_URL = 'https://qgdzhamtkrbqhrkkutdr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---------- constants ----------
 const DAILY_TIER_DEFAULT_RATES = [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000];
@@ -477,14 +477,14 @@ function lookupTier(value, list){
 
 // ---------- storage (Supabase) ----------
 async function kvGet(key){
-  const { data, error } = await supabase.from('payroll_kv').select('value').eq('key', key).maybeSingle();
+  const { data, error } = await sb.from('payroll_kv').select('value').eq('key', key).maybeSingle();
   if (error) throw error;
   return data ? data.value : null;
 }
 async function kvSet(key, value){
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
-  const { error } = await supabase.from('payroll_kv').upsert(
+  const { error } = await sb.from('payroll_kv').upsert(
     { user_id: user.id, key, value },
     { onConflict: 'user_id,key' }
   );
@@ -917,7 +917,7 @@ document.getElementById('processImageBtn').addEventListener('click', async ()=>{
 {"days":[{"day":1,"first":"08:42","last":"20:02"},{"day":3,"first":"08:48","last":"20:05"}]}
 เวลาให้อยู่ในรูปแบบ HH:MM 24 ชั่วโมงเสมอ`;
 
-    const { data, error } = await supabase.functions.invoke('read-attendance', {
+    const { data, error } = await sb.functions.invoke('read-attendance', {
       body: { mimeType, data: base64, prompt }
     });
     if (error) throw new Error(error.message || 'เรียก Edge Function ไม่สำเร็จ');
@@ -1030,7 +1030,7 @@ async function handleSignup(){
   if (!email){ errEl.textContent = 'กรอกอีเมล'; return; }
   if (p1.length < 6){ errEl.textContent = 'รหัสผ่านควรมีอย่างน้อย 6 ตัวอักษร'; return; }
   if (p1 !== p2){ errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; return; }
-  const { data, error } = await supabase.auth.signUp({ email, password: p1 });
+  const { data, error } = await sb.auth.signUp({ email, password: p1 });
   if (error){ errEl.textContent = error.message; return; }
   if (data.session){
     unlockApp();
@@ -1043,7 +1043,7 @@ async function handleLogin(){
   const email = document.getElementById('authEmailInput').value.trim();
   const p1 = document.getElementById('authPassInput').value;
   const errEl = document.getElementById('authError');
-  const { error } = await supabase.auth.signInWithPassword({ email, password: p1 });
+  const { error } = await sb.auth.signInWithPassword({ email, password: p1 });
   if (error){ errEl.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + error.message; return; }
   unlockApp();
 }
@@ -1053,7 +1053,7 @@ async function handleChangePassword(){
   const errEl = document.getElementById('authError');
   if (p1.length < 6){ errEl.textContent = 'รหัสผ่านควรมีอย่างน้อย 6 ตัวอักษร'; return; }
   if (p1 !== p2){ errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; return; }
-  const { error } = await supabase.auth.updateUser({ password: p1 });
+  const { error } = await sb.auth.updateUser({ password: p1 });
   if (error){ errEl.textContent = error.message; return; }
   errEl.classList.add('ok');
   errEl.textContent = 'เปลี่ยนรหัสผ่านเรียบร้อย ✓';
@@ -1066,7 +1066,7 @@ function unlockApp(){
 }
 document.getElementById('changePassBtn').addEventListener('click', showChangeScreen);
 document.getElementById('lockBtn').addEventListener('click', async ()=>{
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
   document.getElementById('appShell').style.display = 'none';
   showLoginScreen();
 });
@@ -1198,13 +1198,13 @@ async function initApp(){
   renderAll();
 }
 (async function initAuth(){
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (session){
     unlockApp();
   } else {
     showLoginScreen();
   }
-  supabase.auth.onAuthStateChange((event, session)=>{
+  sb.auth.onAuthStateChange((event, session)=>{
     if (event === 'SIGNED_OUT'){
       document.getElementById('appShell').style.display = 'none';
       showLoginScreen();
