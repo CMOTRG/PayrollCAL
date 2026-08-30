@@ -99,6 +99,7 @@
     font-family:'IBM Plex Mono', monospace; font-size:13px; background:#fff; color:var(--ink);
   }
   input[type=text]{ font-family:'Sarabun'; }
+  input.num-input{ font-family:'IBM Plex Mono', monospace; text-align:right; }
   input[type=number]:focus, input[type=text]:focus{ outline:2px solid var(--green); outline-offset:1px; }
   .readonly{
     background: #F4F5F0; color: var(--ink-soft); border-radius:6px; padding:5px 7px;
@@ -317,10 +318,10 @@
         <tr><th>รายการ</th><th class="num" style="width:120px;">จำนวน</th><th class="num" style="width:80px;">ตัวคูณ</th><th class="num" style="width:130px;">จำนวน (บาท)</th><th style="width:170px;">หมายเหตุ</th></tr>
       </thead>
       <tbody>
-        <tr class="item"><td>เงินเดือน</td><td class="num"><input type="number" id="in_salary"></td><td class="num">1</td><td class="num amt num-cell" id="amt_salary">0</td><td></td></tr>
-        <tr class="item"><td>ใบประกอบ</td><td class="num"><input type="number" id="in_license"></td><td class="num">1</td><td class="num amt num-cell" id="amt_license">0</td><td></td></tr>
-        <tr class="item"><td>ประสบการณ์</td><td class="num"><input type="number" id="in_experience"></td><td class="num">1</td><td class="num amt num-cell" id="amt_experience">0</td><td></td></tr>
-        <tr class="item"><td>ตำแหน่งอื่นๆ</td><td class="num"><input type="number" id="in_otherPosition"></td><td class="num">1</td><td class="num amt num-cell" id="amt_otherPosition">0</td><td><input type="text" class="small-note-input" id="note_otherPosition" placeholder="เช่น ผจก/โมบาย"></td></tr>
+        <tr class="item"><td>เงินเดือน</td><td class="num"><input type="text" inputmode="decimal" id="in_salary"></td><td class="num">1</td><td class="num amt num-cell" id="amt_salary">0</td><td></td></tr>
+        <tr class="item"><td>ใบประกอบ</td><td class="num"><input type="text" inputmode="decimal" id="in_license"></td><td class="num">1</td><td class="num amt num-cell" id="amt_license">0</td><td></td></tr>
+        <tr class="item"><td>ประสบการณ์</td><td class="num"><input type="text" inputmode="decimal" id="in_experience"></td><td class="num">1</td><td class="num amt num-cell" id="amt_experience">0</td><td></td></tr>
+        <tr class="item"><td>ตำแหน่งอื่นๆ</td><td class="num"><input type="text" inputmode="decimal" id="in_otherPosition"></td><td class="num">1</td><td class="num amt num-cell" id="amt_otherPosition">0</td><td><input type="text" class="small-note-input" id="note_otherPosition" placeholder="เช่น ผจก/โมบาย"></td></tr>
       </tbody>
       <tbody id="extraBaseBody"></tbody>
       <tbody>
@@ -329,12 +330,12 @@
 
       <tbody>
         <tr><td colspan="5" class="section-label">รายการเบิก</td></tr>
-        <tr class="item"><td>OT</td><td class="num"><span class="readonly" id="in_otHours">0</span></td><td class="num"><input type="number" id="in_otRate" style="text-align:right;"></td><td class="num amt num-cell" id="amt_ot">0</td><td style="font-size:11.5px;color:var(--ink-soft);">ชม. รวมจากตารางยอดขาย</td></tr>
+        <tr class="item"><td>OT</td><td class="num"><span class="readonly" id="in_otHours">0</span></td><td class="num"><input type="text" inputmode="decimal" id="in_otRate" style="text-align:right;"></td><td class="num amt num-cell" id="amt_ot">0</td><td style="font-size:11.5px;color:var(--ink-soft);">ชม. รวมจากตารางยอดขาย</td></tr>
         <tr class="item"><td>com รายวัน</td><td class="num"><span class="readonly" id="in_comDaily">0</span></td><td class="num">1</td><td class="num amt num-cell" id="amt_comDaily">0</td><td style="font-size:11.5px;color:var(--ink-soft);">รวมจากตารางยอดขาย</td></tr>
-        <tr class="item"><td>com รายเดือน</td><td class="num"><input type="number" id="in_comMonthly"></td><td class="num">1</td><td class="num amt num-cell" id="amt_comMonthly">0</td><td style="font-size:11px;color:var(--ink-soft);" id="comMonthlyHint"></td></tr>
-        <tr class="item"><td>ค่าเชียร์</td><td class="num"><input type="number" id="in_cheer"></td><td class="num">1</td><td class="num amt num-cell" id="amt_cheer">0</td><td></td></tr>
-        <tr class="item"><td>ค่า CI</td><td class="num"><input type="number" id="in_ci"></td><td class="num">1</td><td class="num amt num-cell" id="amt_ci">0</td><td></td></tr>
-        <tr class="item"><td>อื่นๆ</td><td class="num"><input type="number" id="in_other"></td><td class="num">1</td><td class="num amt num-cell" id="amt_other">0</td><td><input type="text" class="small-note-input" id="note_other" placeholder="เช่น ประกันสุขภาพ"></td></tr>
+        <tr class="item"><td>com รายเดือน</td><td class="num"><input type="text" inputmode="decimal" id="in_comMonthly"></td><td class="num">1</td><td class="num amt num-cell" id="amt_comMonthly">0</td><td style="font-size:11px;color:var(--ink-soft);" id="comMonthlyHint"></td></tr>
+        <tr class="item"><td>ค่าเชียร์</td><td class="num"><input type="text" inputmode="decimal" id="in_cheer"></td><td class="num">1</td><td class="num amt num-cell" id="amt_cheer">0</td><td></td></tr>
+        <tr class="item"><td>ค่า CI</td><td class="num"><input type="text" inputmode="decimal" id="in_ci"></td><td class="num">1</td><td class="num amt num-cell" id="amt_ci">0</td><td></td></tr>
+        <tr class="item"><td>อื่นๆ</td><td class="num"><input type="text" inputmode="decimal" id="in_other"></td><td class="num">1</td><td class="num amt num-cell" id="amt_other">0</td><td><input type="text" class="small-note-input" id="note_other" placeholder="เช่น ประกันสุขภาพ"></td></tr>
       </tbody>
       <tbody id="extraAdvanceBody"></tbody>
       <tbody>
@@ -344,9 +345,9 @@
 
       <tbody>
         <tr><td colspan="5" class="section-label ded">รายการหัก</td></tr>
-        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded1" placeholder="ระบุรายการหัก" style="width:100%;"></td><td class="num"><input type="number" id="in_ded1"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded1">0</td><td></td></tr>
-        <tr class="item ded"><td>ประกันสังคม</td><td class="num"><input type="number" id="in_ss"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ss">0</td><td></td></tr>
-        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded2" placeholder="รายการหักอื่น" style="width:100%;"></td><td class="num"><input type="number" id="in_ded2"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded2">0</td><td></td></tr>
+        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded1" placeholder="ระบุรายการหัก" style="width:100%;"></td><td class="num"><input type="text" inputmode="decimal" id="in_ded1"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded1">0</td><td></td></tr>
+        <tr class="item ded"><td>ประกันสังคม</td><td class="num"><input type="text" inputmode="decimal" id="in_ss"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ss">0</td><td></td></tr>
+        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded2" placeholder="รายการหักอื่น" style="width:100%;"></td><td class="num"><input type="text" inputmode="decimal" id="in_ded2"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded2">0</td><td></td></tr>
       </tbody>
       <tbody id="extraDeductionBody"></tbody>
       <tbody>
@@ -421,6 +422,34 @@
 const SUPABASE_URL = 'https://qgdzhamtkrbqhrkkutdr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ---------- numeric input helper ----------
+// input ที่ใช้กรอกตัวเลขในแอปนี้เป็น type="text" (ไม่ใช่ type="number")
+// เพราะ input[type=number] ไม่รองรับ setSelectionRange() ทำให้ตอน re-render
+// แล้ว restore cursor ไม่ได้ผล เบราว์เซอร์จะวาง cursor กลับไปตำแหน่งเริ่มต้นเสมอ
+// ฟังก์ชันนี้ทำหน้าที่กรองให้พิมพ์ได้เฉพาะตัวเลข/จุดทศนิยม/เครื่องหมายลบนำหน้า
+function sanitizeNumericInput(el){
+  const before = el.value;
+  let cleaned = before.replace(/[^\d.\-]/g, '');
+  // อนุญาตเครื่องหมายลบได้แค่ตัวแรกตัวเดียว
+  cleaned = cleaned.replace(/(?!^)-/g, '');
+  // อนุญาตจุดทศนิยมได้แค่จุดเดียว
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot !== -1){
+    cleaned = cleaned.slice(0, firstDot+1) + cleaned.slice(firstDot+1).replace(/\./g, '');
+  }
+  if (cleaned !== before){
+    const pos = el.selectionStart - (before.length - cleaned.length);
+    el.value = cleaned;
+    const newPos = Math.max(0, pos);
+    el.setSelectionRange(newPos, newPos);
+  }
+  return cleaned;
+}
+function numVal(str){
+  const n = parseFloat(str);
+  return isNaN(n) ? 0 : n;
+}
 
 // ---------- constants ----------
 const DAILY_TIER_DEFAULT_RATES = [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000];
@@ -573,9 +602,9 @@ function renderDaily(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="day-cell">${row.day}</td>
-      <td class="num"><input type="number" data-idx="${idx}" data-field="sales" value="${row.sales||0}"></td>
-      <td class="num"><input type="number" data-idx="${idx}" data-field="cases" value="${row.cases||0}"></td>
-      <td class="num"><input type="number" data-idx="${idx}" data-field="ot" value="${row.ot||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="sales" value="${row.sales||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="cases" value="${row.cases||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="ot" value="${row.ot||0}"></td>
       <td class="num"><span class="readonly">${fmt(com)}</span></td>
     `;
     body.appendChild(tr);
@@ -666,7 +695,7 @@ function renderExtraSection(bodyId, section, sign, extraClass){
     tr.className = 'item' + (extraClass ? ' '+extraClass : '');
     tr.innerHTML = `
       <td><input type="text" data-extra-sec="${section}" data-id="${item.id}" data-f="label" class="small-note-input" style="width:100%;" value="${escapeAttr(item.label)}" placeholder="ระบุรายการ"></td>
-      <td class="num"><input type="number" data-extra-sec="${section}" data-id="${item.id}" data-f="amount" value="${item.amount||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-extra-sec="${section}" data-id="${item.id}" data-f="amount" value="${item.amount||0}"></td>
       <td class="num">${sign > 0 ? '1' : '-1'}</td>
       <td class="num amt num-cell">${fmt(amt)}</td>
       <td><button type="button" class="btn ghost small" data-remove-sec="${section}" data-remove-id="${item.id}">ลบ</button></td>
@@ -702,14 +731,15 @@ document.querySelector('[data-panel="salary"]').addEventListener('click', (e)=>{
 document.querySelector('[data-panel="salary"]').addEventListener('input', (e)=>{
   const t = e.target;
   if (t.dataset.extraSec){
+    if (t.dataset.f === 'amount') sanitizeNumericInput(t);
     const list = month[t.dataset.extraSec] || [];
     const item = list.find(i => i.id === t.dataset.id);
     if (item){
-      item[t.dataset.f] = t.dataset.f === 'label' ? t.value : (t.value === '' ? 0 : Number(t.value));
+      item[t.dataset.f] = t.dataset.f === 'label' ? t.value : numVal(t.value);
       const totals = renderDaily();
       renderSalary(totals);
       const again = document.querySelector(`[data-extra-sec="${t.dataset.extraSec}"][data-id="${t.dataset.id}"][data-f="${t.dataset.f}"]`);
-      if (again){ again.focus(); if (t.dataset.f==='label'){ const v=again.value; again.setSelectionRange(v.length,v.length);} }
+      if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
       saveMonthDebounced();
     }
     return;
@@ -723,8 +753,8 @@ function renderTiers(){
   tiers.daily.forEach((t, i)=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="num"><input type="number" data-tier="daily" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
-      <td class="num"><input type="number" data-tier="daily" data-i="${i}" data-f="rate" value="${t.rate}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="daily" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="daily" data-i="${i}" data-f="rate" value="${t.rate}"></td>
     `;
     dBody.appendChild(tr);
   });
@@ -733,8 +763,8 @@ function renderTiers(){
   tiers.monthly.forEach((t, i)=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td class="num"><input type="number" data-tier="monthly" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
-      <td class="num"><input type="number" data-tier="monthly" data-i="${i}" data-f="rate" value="${t.rate}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="monthly" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="monthly" data-i="${i}" data-f="rate" value="${t.rate}"></td>
     `;
     mBody.appendChild(tr);
   });
@@ -749,8 +779,8 @@ function renderLeave(){
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${lt.label}</td>
-      <td class="num"><input type="number" data-leave="${lt.key}" data-f="total" value="${rec.total||0}"></td>
-      <td class="num"><input type="number" data-leave="${lt.key}" data-f="used" value="${rec.used||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-leave="${lt.key}" data-f="total" value="${rec.total||0}"></td>
+      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-leave="${lt.key}" data-f="used" value="${rec.used||0}"></td>
       <td class="num"><span class="readonly">${fmt(remain)}</span></td>
       <td class="num"><span class="readonly">${lt.note}</span></td>
     `;
@@ -801,11 +831,12 @@ document.getElementById('branchInput').addEventListener('input', (e)=>{
 document.getElementById('dailyBody').addEventListener('input', (e)=>{
   const t = e.target;
   if (t.dataset.idx === undefined) return;
+  sanitizeNumericInput(t);
   const idx = Number(t.dataset.idx), field = t.dataset.field;
-  month.daily[idx][field] = t.value === '' ? 0 : Number(t.value);
+  month.daily[idx][field] = numVal(t.value);
   const totals = renderDaily();
   renderSalary(totals);
-  // restore focus after re-render
+  // restore focus + cursor position after re-render (works because these are type="text")
   const again = document.querySelector(`[data-idx="${idx}"][data-field="${field}"]`);
   if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
   saveMonthDebounced();
@@ -817,35 +848,43 @@ const salaryFieldMap = {
   in_cheer:'cheer', in_ci:'ci', in_other:'other', note_other:'otherNote',
   label_ded1:'ded1Label', in_ded1:'ded1', in_ss:'ss', label_ded2:'ded2Label', in_ded2:'ded2'
 };
+const salaryNumericIds = new Set(['in_salary','in_license','in_experience','in_otherPosition','in_otRate','in_comMonthly','in_cheer','in_ci','in_other','in_ded1','in_ss','in_ded2']);
 document.querySelector('[data-panel="salary"]').addEventListener('input', (e)=>{
   const id = e.target.id;
   if (!(id in salaryFieldMap)) return;
   const key = salaryFieldMap[id];
-  const isText = e.target.type === 'text';
-  month[key] = isText ? e.target.value : (e.target.value === '' ? 0 : Number(e.target.value));
+  const isText = e.target.type === 'text' && !salaryNumericIds.has(id);
+  if (salaryNumericIds.has(id)) sanitizeNumericInput(e.target);
+  month[key] = isText ? e.target.value : numVal(e.target.value);
   const totals = renderDaily();
   renderSalary(totals);
-  document.getElementById(id).focus();
+  const again = document.getElementById(id);
+  again.focus();
+  if (salaryNumericIds.has(id)){ const v = again.value; again.setSelectionRange(v.length, v.length); }
   saveMonthDebounced();
 });
 
 document.getElementById('leaveBody').addEventListener('input', (e)=>{
   const t = e.target;
   if (!t.dataset.leave) return;
-  month.leave[t.dataset.leave][t.dataset.f] = t.value === '' ? 0 : Number(t.value);
+  sanitizeNumericInput(t);
+  month.leave[t.dataset.leave][t.dataset.f] = numVal(t.value);
   renderLeave();
   const again = document.querySelector(`[data-leave="${t.dataset.leave}"][data-f="${t.dataset.f}"]`);
-  if (again) again.focus();
+  if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
   saveMonthDebounced();
 });
 
 function tierInputHandler(e){
   const t = e.target;
   if (!t.dataset.tier) return;
+  sanitizeNumericInput(t);
   const list = tiers[t.dataset.tier];
-  list[Number(t.dataset.i)][t.dataset.f] = t.value === '' ? 0 : Number(t.value);
+  list[Number(t.dataset.i)][t.dataset.f] = numVal(t.value);
   const totals = renderDaily();
   renderSalary(totals);
+  const again = document.querySelector(`[data-tier="${t.dataset.tier}"][data-i="${t.dataset.i}"][data-f="${t.dataset.f}"]`);
+  if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
   saveMonthDebounced();
 }
 document.getElementById('dailyTierBody').addEventListener('input', tierInputHandler);
@@ -861,6 +900,7 @@ document.getElementById('addMonthlyTier').addEventListener('click', ()=>{
   tiers.monthly.push({ threshold: (last?last.threshold:18000)+1000, rate: (last?last.rate:0)+500 });
   renderTiers();
 });
+document.getElementById('saveTiers').addEventListener('click', saveTiersToStorage);
 function fileToBase64(file){
   return new Promise((resolve, reject)=>{
     const r = new FileReader();
