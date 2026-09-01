@@ -2,831 +2,978 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ระบบคิดเงินเดือน CMO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบเงินเดือน CMO</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
 <style>
-:root{--bg:#f4f6fb;--card:#fff;--line:#dfe4ee;--pri:#2f6fed;--ok:#15a06a;--bad:#e04a4a;--txt:#1f2937}
-*{box-sizing:border-box;font-family:"Noto Sans Thai",system-ui,-apple-system,sans-serif}
-body{margin:0;background:var(--bg);color:var(--txt);font-size:14px}
-input,select,button{font:inherit}
-input,select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
-input:focus,select:focus{outline:2px solid #bcd0fb;border-color:var(--pri)}
-button{padding:9px 14px;border:0;border-radius:8px;background:var(--pri);color:#fff;cursor:pointer;font-weight:600}
-button.ghost{background:#eef2fb;color:var(--pri)}
-button.link{background:none;color:var(--pri);text-decoration:underline;padding:6px;font-weight:500}
-button:disabled{opacity:.55;cursor:not-allowed}
-.hide{display:none!important}
+:root{
+  --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --muted:#94a3b8;
+  --pri:#3b82f6; --pri-d:#2563eb; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--txt)}
+input,select,button{font-family:inherit}
+.hide{display:none !important}
 
 /* ---------- Auth ---------- */
-.auth-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#2f6fed,#6ea8ff);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
-.auth-card{background:#fff;border-radius:16px;padding:26px;width:100%;max-width:400px;box-shadow:0 18px 45px rgba(0,0,0,.22)}
-.auth-card h2{margin:0 0 4px;font-size:20px}
-.auth-card p.sub{margin:0 0 18px;color:#6b7280;font-size:13px}
+.auth-overlay{
+  position:fixed; inset:0; background:linear-gradient(160deg,#0f172a,#1e3a5f);
+  display:flex; align-items:center; justify-content:center; z-index:100;
+}
+.auth-card{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  padding:28px; width:100%; max-width:380px;
+}
+.auth-card h2{margin-top:0; text-align:center}
+.auth-tabs{display:flex; gap:8px; margin-bottom:16px}
+.auth-tabs button{
+  flex:1; padding:8px; border:1px solid var(--line); background:transparent;
+  color:var(--muted); border-radius:8px; cursor:pointer;
+}
+.auth-tabs button.active{background:var(--pri); color:#fff; border-color:var(--pri)}
 .field{margin-bottom:12px}
-.field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#4b5563}
-.auth-msg{font-size:13px;margin:8px 0;min-height:18px}
-.auth-msg.err{color:var(--bad)} .auth-msg.ok{color:var(--ok)}
-.hint{font-size:11.5px;color:#6b7280;margin-top:4px}
+.field label{display:block; font-size:13px; color:var(--muted); margin-bottom:4px}
+.field input, .field select{
+  width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line);
+  background:#0f172a; color:var(--txt);
+}
+.btn{
+  width:100%; padding:10px; border:none; border-radius:8px; background:var(--pri);
+  color:#fff; font-weight:600; cursor:pointer;
+}
+.btn:hover{background:var(--pri-d)}
+.btn.secondary{background:transparent; border:1px solid var(--line); color:var(--txt)}
+.btn.small{width:auto; padding:6px 10px; font-size:13px}
+.msg{font-size:13px; margin-top:8px; text-align:center}
+.msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
 
-/* ---------- Shell ---------- */
-header{background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:20}
-header h1{font-size:17px;margin:0;flex:1}
-.badge{background:#eef2fb;color:var(--pri);padding:4px 11px;border-radius:99px;font-size:12px;font-weight:700}
-.badge.staff{background:#e7f7ef;color:var(--ok)}
-.badge.admin{background:#fdecec;color:#c0392b}
-nav{display:flex;gap:6px;padding:10px 18px;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:57px;z-index:19}
-nav button{background:#eef2fb;color:#475569}
-nav button.active{background:var(--pri);color:#fff}
-main{padding:18px;max-width:1180px;margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
-.card h3{margin:0 0 12px;font-size:15px}
-.card h4{margin:16px 0 8px;font-size:13.5px;color:var(--pri)}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
-.row>div{flex:1;min-width:140px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{border:1px solid var(--line);padding:5px 7px;text-align:center}
-th{background:#f0f3fa;font-weight:600}
-td.l,th.l{text-align:left} td.r{text-align:right}
-table input{padding:4px 6px;border-radius:6px;text-align:right}
-table input.txt{text-align:left}
-.wrap{overflow-x:auto}
-.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px}
-.sum div{background:#f7f9fd;border:1px solid var(--line);border-radius:10px;padding:11px}
-.sum span{display:block;font-size:11.5px;color:#6b7280}
-.sum b{font-size:17px}
-.sum .net{background:#e9f2ff;border-color:#b9d2ff}
-.sum .net b{color:var(--pri)}
-.status{font-size:12px;color:#6b7280;margin-left:auto}
-@media(max-width:640px){nav{top:auto;position:static}header{position:static}}
+/* ---------- App Shell ---------- */
+#appShell{max-width:1100px; margin:0 auto; padding:16px}
+.topbar{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 4px; border-bottom:1px solid var(--line); margin-bottom:14px;
+}
+.topbar .who{font-size:13px; color:var(--muted)}
+.tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
+.tabs button{
+  padding:8px 14px; border-radius:8px; border:1px solid var(--line);
+  background:var(--card); color:var(--txt); cursor:pointer; font-size:14px;
+}
+.tabs button.active{background:var(--pri); border-color:var(--pri)}
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px; margin-bottom:16px;
+}
+.card h3{margin-top:0}
+.row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
+table{width:100%; border-collapse:collapse; font-size:13px}
+th,td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:center}
+th{color:var(--muted); font-weight:600}
+td input{
+  width:100%; padding:5px; border:1px solid var(--line); border-radius:6px;
+  background:#0f172a; color:var(--txt); text-align:center;
+}
+td input.is-manual{border-color:var(--warn); background:#3a2f12}
+tfoot td{font-weight:700; background:#0f172a}
+.grp td{background:#0f172a; text-align:left; color:var(--pri); font-weight:700}
+.amt{text-align:right; font-variant-numeric:tabular-nums}
+.net td{font-size:16px; color:var(--ok)}
+.mul-fixed{color:var(--err)}
+.hint{font-size:12px; color:var(--muted)}
+.btn-reset{border:none; background:transparent; color:var(--warn); cursor:pointer; font-size:14px}
+.tbl-scroll{overflow-x:auto}
+
+#toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--card); border:1px solid var(--line); padding:10px 18px;
+  border-radius:8px; opacity:0; transition:.25s; pointer-events:none; z-index:200;
+}
+#toast.is-visible{opacity:1; transform:translateX(-50%) translateY(0)}
+.toast--ok{border-color:var(--ok); color:var(--ok)}
+.toast--error{border-color:var(--err); color:var(--err)}
+.toast--warn{border-color:var(--warn); color:var(--warn)}
 </style>
 </head>
 <body>
 
-<!-- ============ AUTH ============ -->
+<!-- ============== AUTH OVERLAY ============== -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card">
-    <h2 id="authTitle">เข้าสู่ระบบ</h2>
-    <p class="sub">ระบบคิดเงินเดือน คลินิกยา มอ ออ</p>
-
-    <div class="field"><label>อีเมล</label>
-      <input type="email" id="authEmail" autocomplete="email" placeholder="you@example.com"></div>
-
-    <div class="field"><label>รหัสผ่าน</label>
-      <input type="password" id="authPass" autocomplete="current-password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
-
-    <div class="field hide" id="wrapPass2"><label>ยืนยันรหัสผ่าน</label>
-      <input type="password" id="authPass2" autocomplete="new-password"></div>
-
-    <div class="field hide" id="wrapRole"><label>ประเภทผู้ใช้งาน</label>
-      <select id="authRole">
-        <option value="staff">พนักงาน / ผู้ช่วย</option>
-        <option value="pharmacist">เภสัชกรสาขา</option>
-      </select></div>
-
-    <div class="field hide" id="wrapName"><label>ชื่อ-สกุล</label>
-      <input type="text" id="authName" placeholder="เช่น สมชาย ใจดี"></div>
-
-    <div class="field hide" id="wrapBranch"><label>สาขา</label>
-      <input type="text" id="authBranch" placeholder="เช่น สาขาหาดใหญ่"></div>
-
-    <div class="field hide" id="wrapSecret"><label>โค้ดลับสำหรับเภสัชกรสาขา</label>
-      <input type="password" id="authSecret" placeholder="กรอกโค้ดลับ">
-      <div class="hint">* ต้องมีโค้ดลับจากบริษัทเท่านั้นจึงจะสมัครเป็นเภสัชกรสาขาได้ (พนักงาน/ผู้ช่วย ไม่ต้องกรอก)</div></div>
-
-    <div class="auth-msg" id="authMsg"></div>
-    <button id="authSubmit" style="width:100%">เข้าสู่ระบบ</button>
-    <button id="authToggle" class="link" style="width:100%;margin-top:6px">ยังไม่มีบัญชี? สมัครสมาชิก</button>
-  </div>
-</div>
-
-<!-- ============ APP ============ -->
-<div id="appShell" class="hide">
-<header>
-  <h1>ระบบคิดเงินเดือน CMO</h1>
-  <span class="badge" id="roleBadge">-</span>
-  <span style="font-size:12.5px;color:#6b7280" id="userEmail"></span>
-  <button class="ghost" id="btnLogout">ออกจากระบบ</button>
-</header>
-
-<nav id="tabNav">
-  <button data-tab="admin"  data-role="admin">ผู้ดูแลระบบ</button>
-  <button data-tab="daily"  data-role="pharmacist">ยอดขายรายวัน</button>
-  <button data-tab="salary" data-role="pharmacist">สรุปเงินเดือน</button>
-  <button data-tab="tiers"  data-role="pharmacist">ตั้งค่าขั้นคอมมิชชั่น</button>
-  <button data-tab="staff"  data-role="staff">คิดเงินเดือน</button>
-  <button data-tab="leave"  data-role="both">วันลา</button>
-</nav>
-
-<main>
-  <div class="card">
-    <div class="row">
-      <div><label style="font-size:12px">เดือน</label>
-        <select id="selMonth"></select></div>
-      <div><label style="font-size:12px">ปี (พ.ศ.)</label>
-        <input type="number" id="inpYear"></div>
-      <div><label style="font-size:12px">สาขา</label>
-        <input type="text" id="inpBranch" placeholder="ชื่อสาขา"></div>
-      <div style="flex:0 0 auto"><button class="ghost" id="btnExportXlsx">Excel</button></div>
-      <div style="flex:0 0 auto"><button class="ghost" id="btnExportPdf">PDF</button></div>
-      <span class="status" id="saveStatus"></span>
+    <h2>ระบบเงินเดือน CMO</h2>
+    <div class="auth-tabs">
+      <button id="tabLoginBtn" class="active">เข้าสู่ระบบ</button>
+      <button id="tabSignupBtn">สมัครสมาชิก</button>
     </div>
-  </div>
 
-  <!-- ---------- แอดมิน ---------- -->
-  <section id="tab-admin" class="card hide">
-    <h3>จัดการผู้ใช้งาน</h3>
-    <div class="row" style="margin-bottom:12px">
-      <div><label style="font-size:12px">ค้นหา (อีเมล / ชื่อ / สาขา)</label>
-        <input type="text" id="admSearch" placeholder="พิมพ์เพื่อกรอง..."></div>
-      <div><label style="font-size:12px">กรองประเภท</label>
-        <select id="admFilterRole">
-          <option value="">ทั้งหมด</option>
-          <option value="staff">พนักงาน / ผู้ช่วย</option>
+    <!-- LOGIN -->
+    <form id="loginForm">
+      <div class="field"><label>อีเมล</label><input type="email" id="li_email" required></div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="li_pass" required></div>
+      <button class="btn" type="submit">เข้าสู่ระบบ</button>
+      <p class="msg" id="loginMsg"></p>
+    </form>
+
+    <!-- SIGNUP -->
+    <form id="signupForm" class="hide">
+      <div class="field"><label>ชื่อ-นามสกุล</label><input type="text" id="su_name" required></div>
+      <div class="field"><label>อีเมล</label><input type="email" id="su_email" required></div>
+      <div class="field"><label>รหัสผ่าน</label><input type="password" id="su_pass" required minlength="6"></div>
+      <div class="field">
+        <label>ประเภทผู้ใช้งาน</label>
+        <select id="su_role">
+          <option value="staff">พนักงาน/ผู้ช่วย</option>
           <option value="pharmacist">เภสัชกรสาขา</option>
-          <option value="admin">ผู้ดูแลระบบ</option>
-        </select></div>
-      <div style="flex:0 0 auto"><button class="ghost" id="admReload">รีเฟรช</button></div>
-      <span class="status" id="admStatus"></span>
-    </div>
-
-    <div class="wrap"><table>
-      <thead><tr><th class="l">อีเมล</th><th class="l">ชื่อ-สกุล</th><th class="l">สาขา</th>
-        <th>ประเภท</th><th>สถานะ</th><th>เข้าล่าสุด</th><th>จัดการ</th></tr></thead>
-      <tbody id="admUserBody"></tbody>
-    </table></div>
-
-    <h4>โค้ดลับสำหรับสมัครเป็นเภสัชกรสาขา</h4>
-    <div class="row">
-      <div><input type="text" id="admSecret" placeholder="โค้ดลับปัจจุบัน"></div>
-      <div style="flex:0 0 auto"><button class="ghost" id="admShowSecret">แสดงโค้ดปัจจุบัน</button></div>
-      <div style="flex:0 0 auto"><button id="admSaveSecret">บันทึกโค้ดใหม่</button></div>
-    </div>
-    <div class="hint">เปลี่ยนแล้วมีผลทันทีกับการสมัครใหม่ทุกครั้ง (ผู้ที่สมัครไปแล้วไม่ได้รับผลกระทบ)</div>
-
-    <h4>สรุปเงินเดือนทั้งบริษัท <span id="admSumLabel" style="color:#6b7280;font-weight:400"></span></h4>
-    <div class="row" style="margin-bottom:10px">
-      <div style="flex:0 0 auto"><button class="ghost" id="admLoadSummary">ดึงข้อมูลเดือนที่เลือกด้านบน</button></div>
-      <div style="flex:0 0 auto"><button class="ghost" id="admExportSummary">ส่งออก Excel</button></div>
-    </div>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">ชื่อ</th><th class="l">อีเมล</th><th class="l">สาขา</th><th>ประเภท</th>
-        <th>รายได้</th><th>เบิก</th><th>หัก</th><th>สุทธิ</th></tr></thead>
-      <tbody id="admSumBody"></tbody>
-      <tfoot><tr><th colspan="7" class="l">รวมทั้งหมด</th><th id="admSumNet">0.00</th></tr></tfoot>
-    </table></div>
-  </section>
-
-  <!-- ---------- เภสัชกร: ยอดขายรายวัน ---------- -->
-  <section id="tab-daily" class="card hide">
-    <h3>ยอดขายรายวัน</h3>
-    <div class="wrap"><table id="dailyTable">
-      <thead><tr><th>วันที่</th><th>ยอดขาย</th><th>เคส</th><th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม.)</th><th>คอมรายวัน</th></tr></thead>
-      <tbody id="dailyBody"></tbody>
-      <tfoot><tr><th>รวม</th><th id="sumSales">0.00</th><th id="sumCases">0</th><th colspan="2">เฉลี่ย/วัน <span id="avgSales">0.00</span></th><th id="sumOt">0.00</th><th id="sumComDaily">0.00</th></tr></tfoot>
-    </table></div>
-  </section>
-
-  <!-- ---------- เภสัชกร: สรุปเงินเดือน ---------- -->
-  <section id="tab-salary" class="card hide">
-    <h3>สรุปเงินเดือน เภสัชกรสาขา</h3>
-    <h4>รายได้ประจำ</h4>
-    <div class="row">
-      <div><label style="font-size:12px">เงินเดือน</label><input type="number" id="ph_salary" value="0"></div>
-      <div><label style="font-size:12px">ค่าตำแหน่ง</label><input type="number" id="ph_position" value="0"></div>
-      <div><label style="font-size:12px">ค่าประสบการณ์</label><input type="number" id="ph_exp" value="0"></div>
-      <div><label style="font-size:12px">ค่าใบประกอบวิชาชีพ</label><input type="number" id="ph_license" value="0"></div>
-    </div>
-    <h4>รายการเบิก</h4>
-    <div class="row">
-      <div><label style="font-size:12px">อัตรา OT / ชม.</label><input type="number" id="ph_otRate" value="80"></div>
-      <div><label style="font-size:12px">ค่า OT รวม (อัตโนมัติ)</label><input type="number" id="ph_otAmt" readonly></div>
-      <div><label style="font-size:12px">คอมรายวันรวม (อัตโนมัติ)</label><input type="number" id="ph_comDaily" readonly></div>
-      <div><label style="font-size:12px">คอมรายเดือน (อัตโนมัติ)</label><input type="number" id="ph_comMonth" readonly></div>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <div><label style="font-size:12px">ค่าเชียร์</label><input type="number" id="ph_cheer" value="0"></div>
-      <div><label style="font-size:12px">ค่า CI</label><input type="number" id="ph_ci" value="0"></div>
-      <div><label style="font-size:12px">ค่าน้ำมัน</label><input type="number" id="ph_fuel" value="0"></div>
-      <div><label style="font-size:12px">อื่นๆ</label><input type="number" id="ph_other" value="0"></div>
-    </div>
-    <h4>รายการหัก</h4>
-    <div class="row">
-      <div><label style="font-size:12px">ประกันสังคม</label><input type="number" id="ph_sso" value="0"></div>
-      <div><label style="font-size:12px">หักอื่นๆ</label><input type="number" id="ph_deductOther" value="0"></div>
-      <div><label style="font-size:12px">หมายเหตุ</label><input type="text" id="ph_deductNote"></div>
-    </div>
-    <div class="sum">
-      <div><span>รวมรายได้ประจำ</span><b id="ph_income">0.00</b></div>
-      <div><span>รวมรายการเบิก</span><b id="ph_allow">0.00</b></div>
-      <div><span>รวมรายการหัก</span><b id="ph_deduct">0.00</b></div>
-      <div class="net"><span>รวมสุทธิ</span><b id="ph_net">0.00</b></div>
-    </div>
-  </section>
-
-  <!-- ---------- เภสัชกร: ขั้นคอมมิชชั่น ---------- -->
-  <section id="tab-tiers" class="card hide">
-    <h3>ตั้งค่าขั้นคอมมิชชั่น</h3>
-    <div class="row" style="align-items:flex-start">
-      <div>
-        <h4>คอมรายวัน (ตามยอดขาย/วัน)</h4>
-        <table><thead><tr><th>ยอดตั้งแต่</th><th>ได้รับ (บาท)</th><th></th></tr></thead>
-          <tbody id="tierDailyBody"></tbody></table>
-        <button class="ghost" style="margin-top:8px" onclick="addTier('daily')">+ เพิ่มขั้น</button>
+        </select>
       </div>
-      <div>
-        <h4>คอมรายเดือน (ตามยอดรวมเดือน)</h4>
-        <table><thead><tr><th>ยอดตั้งแต่</th><th>ได้รับ (บาท)</th><th></th></tr></thead>
-          <tbody id="tierMonthBody"></tbody></table>
-        <button class="ghost" style="margin-top:8px" onclick="addTier('month')">+ เพิ่มขั้น</button>
+      <div class="field hide" id="su_codeField">
+        <label>โค้ดลับสำหรับเภสัชกร</label>
+        <input type="text" id="su_code" placeholder="กรอกโค้ดลับ">
       </div>
-    </div>
-  </section>
-
-  <!-- ---------- พนักงาน/ผู้ช่วย: คิดเงินเดือน ---------- -->
-  <section id="tab-staff" class="card hide">
-    <h3>คิดเงินเดือน พนักงาน / ผู้ช่วย <span id="staffMonthLabel" style="color:#6b7280;font-weight:400"></span></h3>
-
-    <h4>รายได้ประจำ</h4>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
-      <tbody>
-        <tr><td class="l">เงินเดือน</td><td><input type="number" id="st_salary" value="10500"></td><td>-</td><td class="r" id="o_salary">0.00</td><td><input class="txt" id="st_salaryNote"></td></tr>
-        <tr><td class="l">ค่าตำแหน่ง</td><td><input type="number" id="st_position" value="500"></td><td>-</td><td class="r" id="o_position">0.00</td><td><input class="txt" id="st_positionNote" value="ผู้ช่วย/คลัง/โมบาย"></td></tr>
-        <tr><td class="l">ค่าประสบการณ์</td><td><input type="number" id="st_exp" value="0"></td><td>-</td><td class="r" id="o_exp">0.00</td><td><input class="txt" id="st_expNote"></td></tr>
-        <tr><td class="l">ตำแหน่งอื่นๆ</td><td><input type="number" id="st_posOther" value="0"></td><td>-</td><td class="r" id="o_posOther">0.00</td><td><input class="txt" id="st_posOtherNote"></td></tr>
-      </tbody>
-    </table></div>
-
-    <h4>รายการเบิก</h4>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
-      <tbody>
-        <tr><td class="l">OT</td><td><input type="number" id="st_otHours" value="0" step="0.5"></td>
-            <td><input type="number" id="st_otRate" value="50" style="max-width:80px"></td>
-            <td class="r" id="o_ot">0.00</td><td><input class="txt" id="st_otNote" value="ชั่วโมง × อัตรา"></td></tr>
-        <tr><td class="l">com รายวัน</td><td><input type="number" id="st_comDaily" value="0"></td><td>-</td><td class="r" id="o_comDaily">0.00</td><td><input class="txt" id="st_comDailyNote"></td></tr>
-        <tr><td class="l">ค่าเชียร์</td><td><input type="number" id="st_cheer" value="0"></td><td>-</td><td class="r" id="o_cheer">0.00</td><td><input class="txt" id="st_cheerNote"></td></tr>
-        <tr><td class="l">ค่า CI</td><td><input type="number" id="st_ci" value="0"></td><td>-</td><td class="r" id="o_ci">0.00</td><td><input class="txt" id="st_ciNote"></td></tr>
-        <tr><td class="l">ค่าน้ำมัน</td><td><input type="number" id="st_fuel" value="0"></td><td>-</td><td class="r" id="o_fuel">0.00</td><td><input class="txt" id="st_fuelNote"></td></tr>
-        <tr><td class="l">อื่นๆ</td><td><input type="number" id="st_other" value="500"></td><td>-</td><td class="r" id="o_other">0.00</td><td><input class="txt" id="st_otherNote" value="ประกันสุขภาพ"></td></tr>
-      </tbody>
-    </table></div>
-
-    <h4>รายการหัก</h4>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
-      <tbody>
-        <tr><td class="l">ค่าประกันสังคม</td><td><input type="number" id="st_sso" value="0"></td><td>-1</td><td class="r" id="o_sso">0.00</td><td><input class="txt" id="st_ssoNote"></td></tr>
-        <tr><td class="l">หักอื่นๆ</td><td><input type="number" id="st_deductOther" value="0"></td><td>-1</td><td class="r" id="o_deductOther">0.00</td><td><input class="txt" id="st_deductNote"></td></tr>
-      </tbody>
-    </table></div>
-
-    <div class="sum">
-      <div><span>รวมรายได้ประจำ</span><b id="st_income">0.00</b></div>
-      <div><span>รวมรายการเบิก</span><b id="st_allow">0.00</b></div>
-      <div><span>รวมรายการหัก</span><b id="st_deduct">0.00</b></div>
-      <div class="net"><span>รวมสุทธิ</span><b id="st_net">0.00</b></div>
-    </div>
-  </section>
-
-  <!-- ---------- วันลา ---------- -->
-  <section id="tab-leave" class="card hide">
-    <h3>สรุปจำนวนวันหยุด / วันลา <span style="color:#6b7280;font-weight:400">(สิทธิ์ทั้งปี)</span></h3>
-    <div class="wrap"><table>
-      <thead><tr><th class="l">ประเภท</th><th>เงื่อนไข</th><th>สิทธิ์ทั้งปี</th><th>ใช้ไป</th><th>คงเหลือ</th></tr></thead>
-      <tbody id="leaveBody"></tbody>
-    </table></div>
-  </section>
-</main>
+      <button class="btn" type="submit">สมัครสมาชิก</button>
+      <p class="msg" id="signupMsg"></p>
+    </form>
+  </div>
 </div>
+
+<!-- ============== APP SHELL ============== -->
+<div id="appShell" class="hide">
+  <div class="topbar">
+    <strong>ระบบเงินเดือน CMO</strong>
+    <div>
+      <span class="who" id="whoami"></span>
+      <button class="btn secondary small" id="logoutBtn">ออกจากระบบ</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabNav">
+    <button data-tab="daily"  class="staff-only pharm-only">ยอดขายรายวัน</button>
+    <button data-tab="salary" class="pharm-only">เงินเดือนเภสัชกร</button>
+    <button data-tab="staff"  class="stf-only">เงินเดือนพนักงาน</button>
+    <button data-tab="tiers"  class="pharm-only admin-only">ตั้งค่าคอมมิชชั่น</button>
+    <button data-tab="leave">วันลา/วันหยุด</button>
+    <button data-tab="admin"  class="admin-only">ผู้ดูแลระบบ</button>
+  </div>
+
+  <!-- ---------- TAB: DAILY (ยอดขายรายวัน + OCR OT) ---------- -->
+  <section id="tab-daily" class="tab card hide">
+    <h3>ยอดขายรายวัน / อ่านตารางลงเวลาจากรูปภาพ</h3>
+    <div class="row">
+      <input type="file" id="imageInput" accept="image/*">
+      <button class="btn small" id="processImageBtn">อ่านตารางจากรูปภาพ</button>
+      <span class="hint">รองรับตารางที่มีคอลัมน์ OT ตรงๆ หรือมีแค่เวลาเข้า-ออก</span>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
+            <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม.)</th>
+            <th>คอมรายวัน</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="dailyBody"></tbody>
+        <tfoot>
+          <tr>
+            <th>รวม</th>
+            <th id="sumSales">0</th><th id="sumCases">0</th>
+            <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span></th>
+            <th id="sumOt">0.00</th>
+            <th id="sumCom">0.00</th><th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="hint">** ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม./วัน (ฐานงาน 8 ชม. + พัก 1 ชม.)</p>
+  </section>
+
+  <!-- ---------- TAB: SALARY (เภสัชกร ตาม Excel) ---------- -->
+  <section id="tab-salary" class="tab card hide">
+    <h3>สรุปเงินเดือนเภสัชกร</h3>
+    <div class="tbl-scroll">
+      <table class="tbl-salary">
+        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th>หมายเหตุ</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="5">รายได้ประจำ</td></tr>
+          <tr><td>เงินเดือน</td><td><input id="ph_salary" type="number" value="24000"></td><td>—</td><td class="amt" id="o_ph_salary">0.00</td><td><input id="ph_salaryNote"></td></tr>
+          <tr><td>ใบประกอบ</td><td><input id="ph_license" type="number" value="12000"></td><td>—</td><td class="amt" id="o_ph_license">0.00</td><td><input id="ph_licenseNote"></td></tr>
+          <tr><td>ประสบการณ์</td><td><input id="ph_exp" type="number"></td><td>—</td><td class="amt" id="o_ph_exp">0.00</td><td><input id="ph_expNote"></td></tr>
+          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="ph_posOther" type="number"></td><td>—</td><td class="amt" id="o_ph_posOther">0.00</td><td><input id="ph_posOtherNote" placeholder="ผจก/โมบาย"></td></tr>
+
+          <tr class="grp"><td colspan="5">รายการเบิก</td></tr>
+          <tr><td>OT</td><td><input id="ph_otHours" type="number" step="0.5"></td>
+              <td><input id="ph_otRate" type="number" value="170"></td>
+              <td class="amt" id="o_ph_ot">0.00</td><td><input id="ph_otNote"></td></tr>
+          <tr><td>com รายวัน</td><td><input id="ph_comDaily" type="number"></td><td>—</td><td class="amt" id="o_ph_comDaily">0.00</td><td><input id="ph_comDailyNote"></td></tr>
+          <tr><td>com รายเดือน</td><td><input id="ph_comMonthly" type="number"></td><td>—</td><td class="amt" id="o_ph_comMonthly">0.00</td><td><input id="ph_comMonthlyNote" placeholder="ดูยอดเฉลี่ย"></td></tr>
+          <tr><td>ค่าเชียร์</td><td><input id="ph_cheer" type="number"></td><td>—</td><td class="amt" id="o_ph_cheer">0.00</td><td><input id="ph_cheerNote"></td></tr>
+          <tr><td>ค่า CI</td><td><input id="ph_ci" type="number"></td><td>—</td><td class="amt" id="o_ph_ci">0.00</td><td><input id="ph_ciNote"></td></tr>
+          <tr><td>อื่นๆ</td><td><input id="ph_other" type="number"></td><td>—</td><td class="amt" id="o_ph_other">0.00</td><td><input id="ph_otherNote" placeholder="ประกันสุขภาพ"></td></tr>
+
+          <tr class="grp"><td colspan="5">รายการหัก</td></tr>
+          <tr><td>ประกันสังคม</td><td><input id="ph_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_sso">0.00</td><td><input id="ph_ssoNote"></td></tr>
+          <tr><td>หักอื่นๆ</td><td><input id="ph_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_deductOther">0.00</td><td><input id="ph_deductOtherNote"></td></tr>
+        </tbody>
+        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_ph_net">0.00</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <div class="row">
+      <button class="btn small" id="btnExportXlsxPharm">ส่งออก Excel</button>
+      <button class="btn small secondary" id="btnExportPdfPharm">ส่งออก PDF</button>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: STAFF (พนักงาน/ผู้ช่วย) ---------- -->
+  <section id="tab-staff" class="tab card hide">
+    <h3>สรุปเงินเดือนพนักงาน/ผู้ช่วย</h3>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th></tr></thead>
+        <tbody>
+          <tr class="grp"><td colspan="4">รายได้ประจำ</td></tr>
+          <tr><td>เงินเดือน</td><td><input id="st_salary" type="number"></td><td>—</td><td class="amt" id="o_st_salary">0.00</td></tr>
+          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="st_posOther" type="number"></td><td>—</td><td class="amt" id="o_st_posOther">0.00</td></tr>
+
+          <tr class="grp"><td colspan="4">รายการเบิก</td></tr>
+          <tr><td>OT</td><td><input id="st_otHours" type="number" step="0.5"></td>
+              <td><input id="st_otRate" type="number" value="62.5"></td>
+              <td class="amt" id="o_st_ot">0.00</td></tr>
+          <tr><td>com รายวัน</td><td><input id="st_comDaily" type="number"></td><td>—</td><td class="amt" id="o_st_comDaily">0.00</td></tr>
+          <tr><td>อื่นๆ</td><td><input id="st_other" type="number"></td><td>—</td><td class="amt" id="o_st_other">0.00</td></tr>
+
+          <tr class="grp"><td colspan="4">รายการหัก</td></tr>
+          <tr><td>ประกันสังคม</td><td><input id="st_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_sso">0.00</td></tr>
+          <tr><td>หักอื่นๆ</td><td><input id="st_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_deductOther">0.00</td></tr>
+        </tbody>
+        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_st_net">0.00</td></tr></tfoot>
+      </table>
+    </div>
+    <div class="row">
+      <button class="btn small" id="btnExportXlsxStaff">ส่งออก Excel</button>
+    </div>
+  </section>
+
+  <!-- ---------- TAB: TIERS (ตั้งค่าขั้นคอมมิชชั่น) ---------- -->
+  <section id="tab-tiers" class="tab card hide">
+    <h3>ตั้งค่าขั้นคอมมิชชั่น</h3>
+    <div class="row">
+      <strong>คอมรายวัน</strong>
+      <div class="tbl-scroll" style="width:100%">
+        <table>
+          <thead><tr><th>ยอดขายขั้นต่ำ (บาท)</th><th>ค่าคอม (บาท)</th></tr></thead>
+          <tbody id="tierDailyBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="row">
+      <strong>คอมรายเดือน (ยอดเฉลี่ย)</strong>
+      <div class="tbl-scroll" style="width:100%">
+        <table>
+          <thead><tr><th>ยอดเฉลี่ยขั้นต่ำ (บาท)</th><th>ค่าคอม (บาท)</th></tr></thead>
+          <tbody id="tierMonthlyBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <button class="btn small" id="saveTiersBtn">บันทึกขั้นคอมมิชชั่น</button>
+  </section>
+
+  <!-- ---------- TAB: LEAVE ---------- -->
+  <section id="tab-leave" class="tab card hide">
+    <h3>วันลา / วันหยุด</h3>
+    <div class="row">
+      <input type="date" id="lv_date">
+      <select id="lv_type">
+        <option value="ลาป่วย">ลาป่วย</option>
+        <option value="ลากิจ">ลากิจ</option>
+        <option value="ลาพักร้อน">ลาพักร้อน</option>
+        <option value="ขาดงาน">ขาดงาน</option>
+      </select>
+      <input type="text" id="lv_note" placeholder="หมายเหตุ">
+      <button class="btn small" id="lv_addBtn">เพิ่มรายการ</button>
+    </div>
+    <table>
+      <thead><tr><th>วันที่</th><th>ประเภท</th><th>หมายเหตุ</th><th></th></tr></thead>
+      <tbody id="leaveBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ---------- TAB: ADMIN ---------- -->
+  <section id="tab-admin" class="tab card hide">
+    <h3>ผู้ดูแลระบบ</h3>
+
+    <div class="row">
+      <strong>เปลี่ยนโค้ดลับเภสัชกร</strong>
+      <input type="text" id="ad_newCode" placeholder="โค้ดลับใหม่">
+      <button class="btn small" id="ad_saveCodeBtn">บันทึก</button>
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
+        <tbody id="userListBody"></tbody>
+      </table>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <strong>สรุปเงินเดือนรวมรายเดือน</strong>
+      <input type="month" id="ad_month">
+      <button class="btn small" id="ad_loadSummaryBtn">ดึงข้อมูล</button>
+      <button class="btn small secondary" id="ad_exportSummaryBtn">ส่งออก Excel</button>
+    </div>
+    <table>
+      <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th></tr></thead>
+      <tbody id="summaryBody"></tbody>
+    </table>
+  </section>
+</div>
+
+<div id="toast"></div>
 
 <script>
-/* ============ 0) CONFIG ============ */
-const SUPABASE_URL  = 'https://qgdzhamtkrbqhrkkutdr.supabase.co';        // <-- แก้เป็นของคุณ
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE';           // <-- แก้เป็นของคุณ
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/* ============================================================
+ * PAYROLL APP — CMO
+ * โครงสร้าง: CONFIG → UTILS → SUPABASE → AUTH → STORE → TIERS
+ *            → OCR → OT → DAILY → SALARY(PHARM/STAFF) → LEAVE
+ *            → ADMIN → EXPORT → BOOT
+ * ========================================================== */
 
-const $  = id => document.getElementById(id);
-const num = id => { const v = parseFloat(($(id)?.value ?? '').toString().replace(/,/g,'')); return isFinite(v) ? v : 0; };
-const fmt = n => (isFinite(n)?n:0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
-const setTxt = (id,v) => { const el=$(id); if(el) el.textContent = v; };
+/* ---------- [1] CONFIG ---------------------------------- */
+const CONFIG = {
+  SUPABASE_URL : 'https://qgdzhamtkrbqhrkkutdr.supabase.co',   // TODO: ใส่ของจริง
+  SUPABASE_KEY : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE',                       // TODO: ใส่ของจริง
+  TABLE        : 'payroll_kv',
+  OCR_FN       : 'read-attendance',
+  ADMIN_FN     : 'admin-api',
+  PHARM_CODE   : 'BumpTM',   // โค้ดลับสมัครเภสัชกร (ควรย้ายไปตรวจฝั่งเซิร์ฟเวอร์จริง)
 
-let CURRENT_ROLE = 'staff', CURRENT_USER = null;
-let curMonth = new Date().getMonth()+1, curYear = new Date().getFullYear()+543;
+  WORK: { standardHours: 8, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 },
 
-/* ============ 1) AUTH ============ */
-let AUTH_MODE = 'login';
-const isSignup = () => AUTH_MODE === 'signup';
+  DEFAULT_TIER_AMTS: {
+    daily:  [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000],
+    monthly:[500,1000,1500,2000,2500,3000,3500,4000,4500,5000,6000,7000]
+  }
+};
 
-function refreshAuthUI(){
-  const s = isSignup();
-  setTxt('authTitle', s ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ');
-  $('authSubmit').textContent = s ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
-  $('authToggle').textContent = s ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? สมัครสมาชิก';
-  ['wrapPass2','wrapRole','wrapName','wrapBranch'].forEach(w => $(w).classList.toggle('hide', !s));
-  $('authPass').setAttribute('autocomplete', s ? 'new-password' : 'current-password');
-  toggleSecret();
-  showMsg('');
-}
-function toggleSecret(){
-  $('wrapSecret').classList.toggle('hide', !(isSignup() && $('authRole').value === 'pharmacist'));
-}
-function showMsg(text, type='err'){
-  const m = $('authMsg'); m.textContent = text; m.className = 'auth-msg ' + (text ? type : '');
-}
-$('authToggle').onclick = () => { AUTH_MODE = isSignup() ? 'login' : 'signup'; refreshAuthUI(); };
-$('authRole').onchange = toggleSecret;
-$('authPass').addEventListener('keydown', e => { if(e.key==='Enter') $('authSubmit').click(); });
+/* ---------- [2] UTILS ----------------------------------- */
+const U = {
+  $ : (id) => document.getElementById(id),
+  $: (sel, root=document) => [...root.querySelectorAll(sel)],
+  num: (v) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g,'')); return Number.isFinite(n) ? n : 0; },
+  money: (n) => U.num(n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}),
+  val: (id) => U.num(U.$(id)?.value),
+  setVal: (id,v) => { const el=U.$(id); if(el) el.value=v; },
+  setText: (id,v) => { const el=U.$(id); if(el) el.textContent=v; },
+  toHours(t){
+    if (t==null) return null;
+    const s=String(t).trim();
+    if (!s || /^[-–—]$/.test(s)) return null;
+    const m=s.match(/^(\d{1,2})\s*[:.\-]?\s*(\d{2})?$/);
+    if (!m) return null;
+    const h=+m[1], mm=+(m[2]??0);
+    if (h>23||mm>59) return null;
+    return h+mm/60;
+  },
+  round(n,step){ return Math.round(n/step)*step; },
+  toast(msg,type='info'){
+    const box=U.$('toast'); if(!box) return alert(msg);
+    box.textContent=msg;
+    box.className=`toast--${type} is-visible`;
+    clearTimeout(U._t);
+    U._t=setTimeout(()=>box.classList.remove('is-visible'),3200);
+  },
+  debounce(fn,ms=500){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+};
 
-$('authSubmit').onclick = async () => {
-  const btn = $('authSubmit'); btn.disabled = true;
-  try {
-    const email = $('authEmail').value.trim().toLowerCase();
-    const password = $('authPass').value;
-    if (!email || !password) return showMsg('กรุณากรอกอีเมลและรหัสผ่าน');
-    if (password.length < 6)  return showMsg('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร');
+/* ---------- [3] SUPABASE CLIENT -------------------------- */
+const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+let CURRENT_USER = null;
+let CURRENT_ROLE = null;   // 'staff' | 'pharmacist' | 'admin'
 
-    if (isSignup()) {
-      if (password !== $('authPass2').value) return showMsg('รหัสผ่านยืนยันไม่ตรงกัน');
-      const role = $('authRole').value;
-      const code = $('authSecret').value.trim();
-      if (role === 'pharmacist' && !code) return showMsg('กรุณากรอกโค้ดลับสำหรับเภสัชกรสาขา');
+/* ---------- [4] AUTH ------------------------------------- */
+const Auth = {
+  bind(){
+    U.$('tabLoginBtn').onclick  = () => this.switchTab('login');
+    U.$('tabSignupBtn').onclick = () => this.switchTab('signup');
+    U.$('su_role').onchange = (e) => {
+      U.$('su_codeField').classList.toggle('hide', e.target.value !== 'pharmacist');
+    };
+    U.$('loginForm').addEventListener('submit', (e)=>this.login(e));
+    U.$('signupForm').addEventListener('submit', (e)=>this.signup(e));
+    U.$('logoutBtn').onclick = () => this.logout();
+  },
 
-      btn.textContent = 'กำลังสมัคร...';
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/signup-with-role`, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_ANON_KEY },
-        body: JSON.stringify({ email, password, role, code,
-          displayName: $('authName').value.trim(), branch: $('authBranch').value.trim() })
-      });
-      const out = await res.json().catch(()=>({}));
-      if (!res.ok) return showMsg(out.error || 'สมัครสมาชิกไม่สำเร็จ');
+  switchTab(name){
+    U.$('tabLoginBtn').classList.toggle('active', name==='login');
+    U.$('tabSignupBtn').classList.toggle('active', name==='signup');
+    U.$('loginForm').classList.toggle('hide', name!=='login');
+    U.$('signupForm').classList.toggle('hide', name!=='signup');
+  },
 
-      showMsg('สมัครสมาชิกสำเร็จ กำลังเข้าสู่ระบบ...', 'ok');
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) { AUTH_MODE='login'; refreshAuthUI(); return showMsg('สมัครสำเร็จแล้ว กรุณาเข้าสู่ระบบ','ok'); }
-      return bootApp();
+  async login(e){
+    e.preventDefault();
+    const email=U.$('li_email').value.trim(), password=U.$('li_pass').value;
+    const {error} = await sb.auth.signInWithPassword({email,password});
+    if (error){ U.setText('loginMsg', error.message); U.$('loginMsg').className='msg err'; return; }
+    await App.boot();
+  },
+
+  async signup(e){
+    e.preventDefault();
+    const name=U.$('su_name').value.trim();
+    const email=U.$('su_email').value.trim();
+    const password=U.$('su_pass').value;
+    const role=U.$('su_role').value;
+    const code=U.$('su_code').value.trim();
+
+    if (role==='pharmacist' && code !== CONFIG.PHARM_CODE){
+      U.setText('signupMsg','โค้ดลับไม่ถูกต้อง ไม่สามารถสมัครเป็นเภสัชกรได้');
+      U.$('signupMsg').className='msg err';
+      return;
     }
 
-    btn.textContent = 'กำลังเข้าสู่ระบบ...';
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) return showMsg(/invalid/i.test(error.message) ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : error.message);
-    await bootApp();
-  } catch (e) {
-    showMsg(e.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
-  } finally {
-    btn.disabled = false;
-    if (!$('appShell').classList.contains('hide')) return;
-    btn.textContent = isSignup() ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+    const {data, error} = await sb.auth.signUp({
+      email, password,
+      options: { data: { full_name:name, role } }
+    });
+    if (error){ U.setText('signupMsg', error.message); U.$('signupMsg').className='msg err'; return; }
+
+    // เขียน role ลงตาราง profiles (ต้องมีตารางนี้ใน Supabase อยู่แล้ว)
+    if (data.user){
+      await sb.from('profiles').upsert({ id:data.user.id, full_name:name, role });
+    }
+    U.setText('signupMsg','สมัครสำเร็จ! กรุณาเข้าสู่ระบบ');
+    U.$('signupMsg').className='msg ok';
+    this.switchTab('login');
+  },
+
+  async logout(){ await sb.auth.signOut(); location.reload(); }
+};
+
+/* ---------- [5] STORE (Supabase KV) ---------------------- */
+const Store = {
+  async get(key, fallback=null){
+    const {data,error} = await sb.from(CONFIG.TABLE).select('value').eq('key',key).maybeSingle();
+    if (error){ console.warn('[Store.get]',error.message); return fallback; }
+    return data?.value ?? fallback;
+  },
+  async set(key,value){
+    const {error} = await sb.from(CONFIG.TABLE)
+      .upsert({ key, value, user_id: CURRENT_USER?.id }, { onConflict:'key' });
+    if (error) console.warn('[Store.set]', error.message);
   }
 };
 
-$('btnLogout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+/* ---------- [6] TIERS ------------------------------------ */
+const Tiers = {
+  data: { daily:[], monthly:[] },
 
-/* ============ 2) BOOT ============ */
-async function bootApp(){
-  const { data:{ session } } = await sb.auth.getSession();
-  if (!session) { $('authOverlay').classList.remove('hide'); return; }
-  CURRENT_USER = session.user;
-  CURRENT_ROLE = session.user.app_metadata?.role || session.user.user_metadata?.role || 'staff';
+  buildDefault(){
+    this.data = {
+      daily:   CONFIG.DEFAULT_TIER_AMTS.daily.map(amt=>({min:'', amt})),
+      monthly: CONFIG.DEFAULT_TIER_AMTS.monthly.map(amt=>({min:'', amt}))
+    };
+  },
+  async load(){
+    const saved = await Store.get('tiers', null);
+    if (saved && saved.daily?.length) this.data = saved; else this.buildDefault();
+  },
+  async save(){
+    this.data.daily   = this.readTable('tierDailyBody');
+    this.data.monthly = this.readTable('tierMonthlyBody');
+    await Store.set('tiers', this.data);
+    U.toast('บันทึกขั้นคอมมิชชั่นแล้ว','ok');
+    Daily.recalcAll(); Daily.render();
+  },
 
-  $('authOverlay').classList.add('hide');
-  $('appShell').classList.remove('hide');
-  $('userEmail').textContent = session.user.email;
+  lookup(sales, list){
+    const v=U.num(sales); if (v<=0) return 0;
+    const valid=(list||[]).filter(t=>t.min!==''&&t.min!=null&&Number.isFinite(+t.min))
+                           .sort((a,b)=>+b.min-+a.min);
+    const hit=valid.find(t=>v>=+t.min);
+    return hit?U.num(hit.amt):0;
+  },
+  daily:(sales)=>Tiers.lookup(sales,Tiers.data.daily),
+  monthly:(avg)=>Tiers.lookup(avg,Tiers.data.monthly),
 
-  const isPharm = CURRENT_ROLE === 'pharmacist';
-  const isAdmin = CURRENT_ROLE === 'admin';
-  const badge = $('roleBadge');
-  badge.textContent = isAdmin ? 'ผู้ดูแลระบบ' : (isPharm ? 'เภสัชกรสาขา' : 'พนักงาน / ผู้ช่วย');
-  badge.className = 'badge' + (isAdmin ? ' admin' : (isPharm ? '' : ' staff'));
+  renderTable(bodyId, list){
+    const body=U.$(bodyId);
+    body.innerHTML=list.map((t,i)=>`
+      <tr>
+        <td><input type="number" data-i="${i}" data-f="min" value="${t.min}"></td>
+        <td><input type="number" data-i="${i}" data-f="amt" value="${t.amt}"></td>
+      </tr>`).join('');
+  },
+  readTable(bodyId){
+    return U.$(`#${bodyId} tr`).map(tr=>({
+      min: tr.querySelector('[data-f="min"]').value,
+      amt: U.num(tr.querySelector('[data-f="amt"]').value)
+    }));
+  },
+  render(){
+    this.renderTable('tierDailyBody', this.data.daily);
+    this.renderTable('tierMonthlyBody', this.data.monthly);
+  },
+  bind(){ U.$('saveTiersBtn').onclick = () => this.save(); }
+};
 
-  document.querySelectorAll('#tabNav button').forEach(b => {
-    const r = b.dataset.role;
-    b.classList.toggle('hide', !(isAdmin || r === 'both' || r === CURRENT_ROLE));
-  });
+/* ---------- [7] OCR : อ่านตารางลงเวลาจากรูป -------------- */
+const OCR = {
+  PROMPT: `คุณคือระบบอ่านตารางลงเวลาพนักงาน (Time Card) จากรูปภาพ
+อ่านทุกแถวที่เป็น "วันที่ 1-31" แล้วดึงข้อมูล:
+- day   : เลขวันที่ (จำนวนเต็ม 1-31)
+- first : เวลาเข้างานแรกสุดของวันนั้น รูปแบบ "HH:MM" (24 ชม.)
+- last  : เวลาออกงานล่าสุดของวันนั้น รูปแบบ "HH:MM" (24 ชม.)
+- ot    : ถ้าตารางมีคอลัมน์ OT / ล่วงเวลา ให้ใส่เป็นตัวเลขชั่วโมง (ทศนิยมได้)
+          ถ้าไม่มีคอลัมน์นี้ หรืออ่านไม่ออก ให้ใส่ null
+- note  : ถ้าแถวนั้นเขียนว่า ลา/หยุด/ขาด/OFF ให้ใส่ข้อความนั้น ไม่งั้น null
 
-  buildMonthPicker();
-  $('inpBranch').value = session.user.user_metadata?.branch || '';
-  renderLeaveTable({});
-  if (isPharm || isAdmin) { buildDailyTable(); renderTiers(); }
-  bindInputs();
-  await loadAll();
-  if (isAdmin) await admLoadUsers();
-  switchTab(isAdmin ? 'admin' : (isPharm ? 'daily' : 'staff'));
-}
+กติกา:
+1) ถ้าวันไหนไม่มีข้อมูลเวลาเลย ให้ใส่ first=null, last=null
+2) ถ้ามีการสแกนหลายครั้งในวันเดียว ให้เอาเวลาแรกสุดและท้ายสุดเท่านั้น
+3) ห้ามเดาหรือเติมข้อมูลที่ไม่ปรากฏในรูป
+4) ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่นหรือ markdown
 
-sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
-refreshAuthUI();
-bootApp();
+รูปแบบผลลัพธ์:
+{"days":[{"day":1,"first":"08:30","last":"19:30","ot":2,"note":null}]}`,
 
-/* ============ 3) TABS & MONTH ============ */
-const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-function buildMonthPicker(){
-  $('selMonth').innerHTML = TH_MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
-  $('selMonth').value = curMonth;
-  $('inpYear').value  = curYear;
-  $('selMonth').onchange = $('inpYear').onchange = async () => {
-    curMonth = +$('selMonth').value; curYear = +$('inpYear').value;
-    if (CURRENT_ROLE === 'pharmacist' || CURRENT_ROLE === 'admin') buildDailyTable();
-    await loadAll();
-  };
-}
-function daysInMonth(){ return new Date(curYear-543, curMonth, 0).getDate(); }
-function monthKey(prefix){ return `${prefix}:${curYear}-${String(curMonth).padStart(2,'0')}`; }
-function monthLabel(){ return `ประจำเดือน ${TH_MONTHS[curMonth-1]} ${String(curYear).slice(-2)}`; }
+  async compress(file, maxSide=1600, quality=0.85){
+    if (!/^image\//.test(file.type)) throw new Error('ไฟล์ต้องเป็นรูปภาพ');
+    const bmp=await createImageBitmap(file);
+    const scale=Math.min(1, maxSide/Math.max(bmp.width,bmp.height));
+    const cv=document.createElement('canvas');
+    cv.width=Math.round(bmp.width*scale); cv.height=Math.round(bmp.height*scale);
+    cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+    const dataUrl=cv.toDataURL('image/jpeg',quality);
+    return { mimeType:'image/jpeg', data:dataUrl.split(',')[1] };
+  },
 
-document.querySelectorAll('#tabNav button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
-function switchTab(name){
-  document.querySelectorAll('#tabNav button').forEach(b => b.classList.toggle('active', b.dataset.tab===name));
-  ['daily','salary','tiers','staff','leave','admin'].forEach(t => $('tab-'+t).classList.toggle('hide', t!==name));
-}
+  parse(raw){
+    let txt = typeof raw==='string' ? raw : JSON.stringify(raw);
+    try { const o=JSON.parse(txt); txt = o?.candidates?.[0]?.content?.parts?.[0]?.text ?? txt; } catch(_){}
+    txt=String(txt).replace(/```json|```/g,'').trim();
+    const s=txt.indexOf('{'), e=txt.lastIndexOf('}');
+    if (s===-1||e===-1) throw new Error('AI ไม่ได้ส่ง JSON กลับมา');
+    const obj=JSON.parse(txt.slice(s,e+1));
+    if (!Array.isArray(obj.days)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+    return obj.days;
+  },
 
-/* ============ 4) SUPABASE KV ============ */
-async function kvGet(key){
-  const { data, error } = await sb.from('payroll_kv').select('value')
-    .eq('user_id', CURRENT_USER.id).eq('key', key).maybeSingle();
-  if (error) { console.warn(error); return null; }
-  return data?.value ?? null;
-}
-async function kvSet(key, value){
-  setTxt('saveStatus','กำลังบันทึก...');
-  const { error } = await sb.from('payroll_kv')
-    .upsert({ user_id: CURRENT_USER.id, key, value }, { onConflict: 'user_id,key' });
-  setTxt('saveStatus', error ? 'บันทึกไม่สำเร็จ' : 'บันทึกแล้ว ' + new Date().toLocaleTimeString('th-TH'));
-}
-function debounce(fn, ms=700){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
-
-/* ============ 5) STAFF SALARY ============ */
-const STAFF_NUM = ['st_salary','st_position','st_exp','st_posOther','st_otHours','st_otRate',
-  'st_comDaily','st_cheer','st_ci','st_fuel','st_other','st_sso','st_deductOther'];
-const STAFF_TXT = ['st_salaryNote','st_positionNote','st_expNote','st_posOtherNote','st_otNote',
-  'st_comDailyNote','st_cheerNote','st_ciNote','st_fuelNote','st_otherNote','st_ssoNote','st_deductNote'];
-
-function calcStaff(){
-  const salary=num('st_salary'), position=num('st_position'), exp=num('st_exp'), posOther=num('st_posOther');
-  const income = salary + position + exp + posOther;
-
-  const ot = num('st_otHours') * num('st_otRate');
-  const comDaily=num('st_comDaily'), cheer=num('st_cheer'), ci=num('st_ci'), fuel=num('st_fuel'), other=num('st_other');
-  const allow = ot + comDaily + cheer + ci + fuel + other;
-
-  const sso=num('st_sso'), dOther=num('st_deductOther');
-  const deduct = sso + dOther;
-  const net = income + allow - deduct;
-
-  const m = { o_salary:salary,o_position:position,o_exp:exp,o_posOther:posOther,o_ot:ot,
-    o_comDaily:comDaily,o_cheer:cheer,o_ci:ci,o_fuel:fuel,o_other:other,
-    o_sso:-sso, o_deductOther:-dOther };
-  Object.entries(m).forEach(([k,v]) => setTxt(k, fmt(v)));
-
-  setTxt('st_income',fmt(income)); setTxt('st_allow',fmt(allow));
-  setTxt('st_deduct',fmt(deduct)); setTxt('st_net',fmt(net));
-  setTxt('staffMonthLabel', monthLabel());
-  return { income, allow, deduct, net, ot };
-}
-function collectStaff(){
-  const o = { leave: collectLeave(), result: calcStaff() };
-  [...STAFF_NUM, ...STAFF_TXT].forEach(f => o[f] = $(f).value);
-  return o;
-}
-function applyStaff(v){
-  [...STAFF_NUM, ...STAFF_TXT].forEach(f => { if (v && v[f] !== undefined) $(f).value = v[f]; });
-  renderLeaveTable(v?.leave || {});
-  calcStaff();
-}
-const saveStaff = debounce(() => kvSet(monthKey('staff-payroll'), collectStaff()));
-
-/* ============ 6) PHARMACIST: DAILY + TIERS + SALARY ============ */
-let TIERS = { daily: [{from:0,amt:0}], month: [{from:0,amt:0}] };
-
-function buildDailyTable(){
-  const n = daysInMonth();
-  $('dailyBody').innerHTML = Array.from({length:n}, (_,i)=>`
-    <tr data-day="${i+1}">
-      <td>${i+1}</td>
-      <td><input type="number" class="d-sales"></td>
-      <td><input type="number" class="d-cases"></td>
-      <td><input type="time" class="d-in"></td>
-      <td><input type="time" class="d-out"></td>
-      <td class="r d-ot">0.00</td>
-      <td class="r d-com">0.00</td>
-    </tr>`).join('');
-  $('dailyBody').addEventListener('input', () => { calcDaily(); savePharm(); });
-}
-function toMin(t){ if(!t) return null; const [h,m]=t.split(':').map(Number); return h*60+m; }
-function computeOtHours(first,last){
-  const a=toMin(first), b=toMin(last);
-  if (a==null||b==null||b<=a) return 0;
-  return Math.max(0, (b-a)/60 - 1 - 8);
-}
-function lookupTier(value, list){
-  let amt = 0;
-  [...list].sort((x,y)=>x.from-y.from).forEach(t => { if (value >= t.from) amt = t.amt; });
-  return amt;
-}
-function calcDaily(){
-  let sales=0, cases=0, ot=0, com=0, activeDays=0;
-  document.querySelectorAll('#dailyBody tr').forEach(tr => {
-    const s = parseFloat(tr.querySelector('.d-sales').value)||0;
-    const c = parseFloat(tr.querySelector('.d-cases').value)||0;
-    const h = computeOtHours(tr.querySelector('.d-in').value, tr.querySelector('.d-out').value);
-    const dc = s > 0 ? lookupTier(s, TIERS.daily) : 0;
-    tr.querySelector('.d-ot').textContent  = fmt(h);
-    tr.querySelector('.d-com').textContent = fmt(dc);
-    sales+=s; cases+=c; ot+=h; com+=dc; if (s>0) activeDays++;
-  });
-  setTxt('sumSales',fmt(sales)); setTxt('sumCases',cases);
-  setTxt('sumOt',fmt(ot)); setTxt('sumComDaily',fmt(com));
-  setTxt('avgSales', fmt(activeDays ? sales/activeDays : 0));
-  $('ph_otAmt').value    = (ot * num('ph_otRate')).toFixed(2);
-  $('ph_comDaily').value = com.toFixed(2);
-  $('ph_comMonth').value = lookupTier(sales, TIERS.month).toFixed(2);
-  calcPharmSalary();
-  return { sales, cases, ot, com };
-}
-function calcPharmSalary(){
-  const income = num('ph_salary')+num('ph_position')+num('ph_exp')+num('ph_license');
-  const allow  = num('ph_otAmt')+num('ph_comDaily')+num('ph_comMonth')
-               + num('ph_cheer')+num('ph_ci')+num('ph_fuel')+num('ph_other');
-  const deduct = num('ph_sso')+num('ph_deductOther');
-  const net = income + allow - deduct;
-  setTxt('ph_income',fmt(income)); setTxt('ph_allow',fmt(allow));
-  setTxt('ph_deduct',fmt(deduct)); setTxt('ph_net',fmt(net));
-  return { income, allow, deduct, net };
-}
-function renderTiers(){
-  ['daily','month'].forEach(kind => {
-    $(kind==='daily'?'tierDailyBody':'tierMonthBody').innerHTML = TIERS[kind].map((t,i)=>`
-      <tr><td><input type="number" value="${t.from}" onchange="updTier('${kind}',${i},'from',this.value)"></td>
-          <td><input type="number" value="${t.amt}"  onchange="updTier('${kind}',${i},'amt',this.value)"></td>
-          <td><button class="ghost" onclick="delTier('${kind}',${i})">ลบ</button></td></tr>`).join('');
-  });
-}
-function addTier(k){ TIERS[k].push({from:0,amt:0}); renderTiers(); saveTiers(); }
-function delTier(k,i){ TIERS[k].splice(i,1); renderTiers(); calcDaily(); saveTiers(); }
-function updTier(k,i,f,v){ TIERS[k][i][f] = parseFloat(v)||0; calcDaily(); saveTiers(); }
-const saveTiers = debounce(() => kvSet('tiers', TIERS));
-
-function collectPharm(){
-  const days = [...document.querySelectorAll('#dailyBody tr')].map(tr => ({
-    day: +tr.dataset.day,
-    sales: tr.querySelector('.d-sales').value,
-    cases: tr.querySelector('.d-cases').value,
-    in:    tr.querySelector('.d-in').value,
-    out:   tr.querySelector('.d-out').value,
-  }));
-  const o = { days, leave: collectLeave() };
-  PHARM_FIELDS.forEach(f => o[f] = $(f).value);
-  o.result = calcPharmSalary();
-  return o;
-}
-const PHARM_FIELDS = ['ph_salary','ph_position','ph_exp','ph_license','ph_otRate',
-  'ph_cheer','ph_ci','ph_fuel','ph_other','ph_sso','ph_deductOther','ph_deductNote'];
-function applyPharm(v){
-  PHARM_FIELDS.forEach(f => { if (v && v[f] !== undefined) $(f).value = v[f]; });
-  (v?.days || []).forEach(d => {
-    const tr = document.querySelector(`#dailyBody tr[data-day="${d.day}"]`);
-    if (!tr) return;
-    tr.querySelector('.d-sales').value = d.sales ?? '';
-    tr.querySelector('.d-cases').value = d.cases ?? '';
-    tr.querySelector('.d-in').value    = d.in ?? '';
-    tr.querySelector('.d-out').value   = d.out ?? '';
-  });
-  renderLeaveTable(v?.leave || {});
-  calcDaily();
-}
-const savePharm = debounce(() => kvSet(monthKey('pharm-payroll'), collectPharm()));
-
-/* ============ 7) LEAVE ============ */
-const LEAVE_RULES = [
-  ['วันหยุดสะสม','ไม่เกิน 6 วัน','-'],
-  ['ลาป่วย (มีใบ)','ผ่านทดลองงาน',10],
-  ['ลาป่วย (ไม่มีใบ)','เข้าปีที่ 2',5],
-  ['ลากิจ','เข้าปีที่ 3',5],
-  ['ลาสมรส','เข้าปีที่ 3',3],
-  ['ลาพักผ่อน','เข้าปีที่ 4',3],
-  ['ลาคลอด','เข้าปีที่ 4','1 เดือน'],
-  ['ลาอุปสมบท','เข้าปีที่ 4',7],
-  ['ลาจัดการงานศพ','ผ่านทดลองงาน',3],
-];
-function renderLeaveTable(used={}){
-  $('leaveBody').innerHTML = LEAVE_RULES.map(([name,cond,quota])=>{
-    const u = used[name] || 0;
-    const left = typeof quota === 'number' ? quota - u : '-';
-    return `<tr><td class="l">${name}</td><td>${cond}</td><td>${quota}</td>
-      <td><input type="number" class="leaveUsed" data-name="${name}" value="${u}" min="0" style="max-width:80px"></td>
-      <td>${left}</td></tr>`;
-  }).join('');
-  document.querySelectorAll('.leaveUsed').forEach(el => el.oninput = onLeaveChange);
-}
-function collectLeave(){
-  const used = {};
-  document.querySelectorAll('.leaveUsed').forEach(el => used[el.dataset.name] = parseFloat(el.value)||0);
-  return used;
-}
-function onLeaveChange(){
-  const used = collectLeave();
-  renderLeaveTable(used);
-  CURRENT_ROLE === 'pharmacist' ? savePharm() : saveStaff();
-}
-
-/* ============ 8) BIND & LOAD ============ */
-function bindInputs(){
-  [...STAFF_NUM, ...STAFF_TXT].forEach(f =>
-    $(f)?.addEventListener('input', () => { calcStaff(); saveStaff(); }));
-  PHARM_FIELDS.forEach(f =>
-    $(f)?.addEventListener('input', () => { calcDaily(); savePharm(); }));
-  $('inpBranch').addEventListener('input', debounce(() => kvSet('branch', $('inpBranch').value)));
-}
-async function loadAll(){
-  if (CURRENT_ROLE === 'pharmacist' || CURRENT_ROLE === 'admin') {
-    const t = await kvGet('tiers'); if (t) { TIERS = t; renderTiers(); }
-    applyPharm(await kvGet(monthKey('pharm-payroll')));
+  async run(file){
+    const {mimeType,data} = await this.compress(file);
+    const {data:res, error} = await sb.functions.invoke(CONFIG.OCR_FN, { body:{mimeType,data,prompt:this.PROMPT} });
+    if (error){
+      let detail=error.message;
+      try { detail=(await error.context?.json())?.error || detail; } catch(_){}
+      throw new Error(detail);
+    }
+    if (res?.error) throw new Error(res.error);
+    return this.parse(res);
   }
-  if (CURRENT_ROLE === 'staff' || CURRENT_ROLE === 'admin') {
-    applyStaff(await kvGet(monthKey('staff-payroll')));
+};
+
+/* ---------- [8] OT : คำนวณ OT ต่อวัน --------------------- */
+const OT = {
+  calc(first,last,otFromImage=null){
+    if (otFromImage!=null && otFromImage!=='' && Number.isFinite(+otFromImage)){
+      return Math.min(Math.max(+otFromImage,0), CONFIG.WORK.otMaxPerDay);
+    }
+    const a=U.toHours(first), b=U.toHours(last);
+    if (a==null||b==null) return 0;
+    let span=b-a; if (span<0) span+=24;
+    const worked=span-CONFIG.WORK.breakHours;
+    const ot=worked-CONFIG.WORK.standardHours;
+    if (ot<=0) return 0;
+    return Math.min(U.round(ot,CONFIG.WORK.otStep), CONFIG.WORK.otMaxPerDay);
   }
-  const b = await kvGet('branch'); if (b) $('inpBranch').value = b;
-}
+};
 
-/* ============ 9) EXPORT ============ */
-$('btnExportXlsx').onclick = () => {
-  const wb = XLSX.utils.book_new();
-  if (CURRENT_ROLE === 'staff') {
-    const r = calcStaff();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      [`รายการคิดเงินเดือน ${monthLabel()}`],
-      ['รายการ','จำนวน','ตัวคูณ','จำนวน(บาท)','หมายเหตุ'],
-      ['เงินเดือน',num('st_salary'),'',num('st_salary'),$('st_salaryNote').value],
-      ['ตำแหน่ง',num('st_position'),'',num('st_position'),$('st_positionNote').value],
-      ['ประสบการณ์',num('st_exp'),'',num('st_exp'),''],
-      ['ตำแหน่งอื่นๆ',num('st_posOther'),'',num('st_posOther'),''],
-      ['รายการเบิก'],
-      ['OT',num('st_otHours'),num('st_otRate'),r.ot,''],
-      ['com รายวัน',num('st_comDaily'),'',num('st_comDaily'),''],
-      ['ค่าเชียร์',num('st_cheer'),'',num('st_cheer'),''],
-      ['ค่า CI',num('st_ci'),'',num('st_ci'),''],
-      ['ค่าน้ำมัน',num('st_fuel'),'',num('st_fuel'),''],
-      ['อื่นๆ',num('st_other'),'',num('st_other'),$('st_otherNote').value],
-      ['รายการหัก'],
-      ['ค่าประกันสังคม',num('st_sso'),-1,-num('st_sso'),''],
-      ['หักอื่นๆ',num('st_deductOther'),-1,-num('st_deductOther'),$('st_deductNote').value],
-      [],['รวมสุทธิ','','',r.net,''],
-    ]), 'เงินเดือน');
-  } else {
-    const rows = [['วันที่','ยอด','เคส','OT','คอมรายวัน']];
-    document.querySelectorAll('#dailyBody tr').forEach(tr => rows.push([
-      tr.dataset.day, tr.querySelector('.d-sales').value, tr.querySelector('.d-cases').value,
-      tr.querySelector('.d-ot').textContent, tr.querySelector('.d-com').textContent]));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'รายวัน');
+/* ---------- [9] DAILY : ตารางรายวัน ---------------------- */
+const Daily = {
+  rows: [],
+  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false}; },
+  init(days=31){ this.rows=Array.from({length:days},(_,i)=>this.blank(i+1)); },
+
+  render(){
+    const body=U.$('dailyBody');
+    body.innerHTML=this.rows.map((r,i)=>`
+      <tr data-i="${i}">
+        <td>${r.day}</td>
+        <td><input class="in-num" data-f="sales" type="number" step="0.01" value="${r.sales||''}"></td>
+        <td><input class="in-num" data-f="cases" type="number" step="1" value="${r.cases||''}"></td>
+        <td><input class="in-time" data-f="in" type="text" placeholder="08:30" value="${r.in}"></td>
+        <td><input class="in-time" data-f="out" type="text" placeholder="19:30" value="${r.out}"></td>
+        <td><input class="in-num ${r.otManual?'is-manual':''}" data-f="ot" type="number" step="0.5" value="${r.ot||''}"></td>
+        <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}"></td>
+        <td><button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
+      </tr>`).join('');
+    this.summary();
+  },
+
+  recalc(i){
+    const r=this.rows[i];
+    if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
+    if (!r.comManual) r.com = Tiers.daily(r.sales);
+  },
+  recalcAll(){ this.rows.forEach((_,i)=>this.recalc(i)); },
+
+  summary(){
+    const sum=(f)=>this.rows.reduce((a,r)=>a+U.num(r[f]),0);
+    const workedDays=this.rows.filter(r=>U.num(r.sales)>0).length;
+    const totals={
+      sales:sum('sales'), cases:sum('cases'), ot:sum('ot'), com:sum('com'),
+      avg: workedDays ? sum('sales')/workedDays : 0
+    };
+    U.setText('sumSales',U.money(totals.sales));
+    U.setText('sumCases',totals.cases);
+    U.setText('sumOt',totals.ot.toFixed(2));
+    U.setText('sumCom',U.money(totals.com));
+    U.setText('avgSales',U.money(totals.avg));
+    Daily.totals=totals;
+    Salary.syncFromDaily(totals);
+    return totals;
+  },
+
+  bind(){
+    const body=U.$('dailyBody');
+    body.addEventListener('input',(e)=>{
+      const inp=e.target.closest('input'); if(!inp) return;
+      const i=+inp.closest('tr').dataset.i, f=inp.dataset.f, r=this.rows[i];
+      if (f==='in'||f==='out') r[f]=inp.value; else r[f]=U.num(inp.value);
+      if (f==='ot')  r.otManual  = inp.value.trim()!=='';
+      if (f==='com') r.comManual = inp.value.trim()!=='';
+      this.recalc(i); this.refreshRow(i); this.summary();
+      Store.set('daily', this.rows).catch(()=>{});
+    });
+    body.addEventListener('click',(e)=>{
+      const btn=e.target.closest('[data-reset]'); if(!btn) return;
+      const i=+btn.dataset.reset;
+      this.rows[i].otManual=this.rows[i].comManual=false;
+      this.recalc(i); this.refreshRow(i); this.summary();
+      U.toast(`คืนค่าอัตโนมัติวันที่ ${this.rows[i].day} แล้ว`,'ok');
+    });
+    U.$('processImageBtn').onclick = () => this.handleImage();
+  },
+
+  refreshRow(i){
+    const r=this.rows[i];
+    const tr=U.$(`#dailyBody tr[data-i="${i}"]`)[0]; if(!tr) return;
+    const ot=tr.querySelector('[data-f="ot"]'), com=tr.querySelector('[data-f="com"]');
+    if (document.activeElement!==ot)  ot.value  = r.ot||'';
+    if (document.activeElement!==com) com.value = r.com||'';
+    ot.classList.toggle('is-manual', r.otManual);
+    com.classList.toggle('is-manual', r.comManual);
+    tr.querySelector('[data-reset]').hidden = !(r.otManual||r.comManual);
+  },
+
+  applyOCR(days){
+    let filled=0;
+    days.forEach(d=>{
+      const i=this.rows.findIndex(r=>r.day===+d.day); if (i===-1) return;
+      const r=this.rows[i];
+      if (d.first) r.in=d.first;
+      if (d.last)  r.out=d.last;
+      if (!r.otManual) r.ot=OT.calc(d.first,d.last,d.ot);
+      this.recalc(i); filled++;
+    });
+    this.render();
+    return filled;
+  },
+
+  async handleImage(){
+    const file=U.$('imageInput').files?.[0];
+    if (!file) return U.toast('กรุณาเลือกรูปตารางลงเวลาก่อน','warn');
+    const btn=U.$('processImageBtn');
+    btn.disabled=true; btn.textContent='กำลังอ่าน...';
+    try{
+      const days=await OCR.run(file);
+      const n=this.applyOCR(days);
+      await Store.set('daily', this.rows);
+      U.toast(`อ่านสำเร็จ ${n} วัน — OT รวม ${this.totals.ot.toFixed(2)} ชม.`,'ok');
+    }catch(err){
+      U.toast('อ่านรูปไม่สำเร็จ: '+err.message,'error');
+    }finally{
+      btn.disabled=false; btn.textContent='อ่านตารางจากรูปภาพ';
+    }
   }
-  const leave = [['ประเภท','เงื่อนไข','สิทธิ์','ใช้','เหลือ']];
-  const used = collectLeave();
-  LEAVE_RULES.forEach(([n,c,q]) => leave.push([n,c,q,used[n]||0, typeof q==='number'? q-(used[n]||0):'-']));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(leave), 'วันลา');
-  XLSX.writeFile(wb, `payroll-${curYear}-${String(curMonth).padStart(2,'0')}.xlsx`);
 };
 
-$('btnExportPdf').onclick = async () => {
-  const el = $(CURRENT_ROLE === 'staff' ? 'tab-staff' : 'tab-salary');
-  const wasHidden = el.classList.contains('hide');
-  el.classList.remove('hide');
-  const canvas = await html2canvas(el, { scale:2, backgroundColor:'#fff' });
-  if (wasHidden) el.classList.add('hide');
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF('p','mm','a4');
-  const w = 190, h = canvas.height * w / canvas.width;
-  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, w, Math.min(h, 277));
-  pdf.save(`payroll-${curYear}-${String(curMonth).padStart(2,'0')}.pdf`);
+/* ---------- [10] SALARY : เภสัชกร + พนักงาน -------------- */
+const Salary = {
+  compute(p){
+    const fixed  = p.salary + p.license + p.exp + p.posOther;
+    const claim  = (p.otHours*p.otRate) + p.comDaily + p.comMonthly + p.cheer + p.ci + p.other;
+    const deduct = p.sso + p.deductOther;
+    return { fixed, claim, deduct, net: fixed+claim-deduct };
+  },
+
+  readPharm(){
+    return {
+      salary:U.val('ph_salary'), license:U.val('ph_license'), exp:U.val('ph_exp'), posOther:U.val('ph_posOther'),
+      otHours:U.val('ph_otHours'), otRate:U.val('ph_otRate')||170,
+      comDaily:U.val('ph_comDaily'), comMonthly:U.val('ph_comMonthly'),
+      cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'),
+      sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther')
+    };
+  },
+  renderPharm(){
+    const p=this.readPharm(), r=this.compute(p);
+    const out={
+      o_ph_salary:p.salary, o_ph_license:p.license, o_ph_exp:p.exp, o_ph_posOther:p.posOther,
+      o_ph_ot:p.otHours*p.otRate, o_ph_comDaily:p.comDaily, o_ph_comMonthly:p.comMonthly,
+      o_ph_cheer:p.cheer, o_ph_ci:p.ci, o_ph_other:p.other,
+      o_ph_sso:-p.sso, o_ph_deductOther:-p.deductOther, o_ph_net:r.net
+    };
+    Object.entries(out).forEach(([id,v])=>U.setText(id,U.money(v)));
+    return r;
+  },
+
+  readStaff(){
+    return {
+      salary:U.val('st_salary'), license:0, exp:0, posOther:U.val('st_posOther'),
+      otHours:U.val('st_otHours'), otRate:U.val('st_otRate')||62.5,
+      comDaily:U.val('st_comDaily'), comMonthly:0, cheer:0, ci:0, other:U.val('st_other'),
+      sso:U.val('st_sso'), deductOther:U.val('st_deductOther')
+    };
+  },
+  renderStaff(){
+    const p=this.readStaff(), r=this.compute(p);
+    const out={
+      o_st_salary:p.salary, o_st_posOther:p.posOther,
+      o_st_ot:p.otHours*p.otRate, o_st_comDaily:p.comDaily, o_st_other:p.other,
+      o_st_sso:-p.sso, o_st_deductOther:-p.deductOther, o_st_net:r.net
+    };
+    Object.entries(out).forEach(([id,v])=>U.setText(id,U.money(v)));
+    return r;
+  },
+
+  syncFromDaily(t){
+    if (!t) return;
+    U.setVal('ph_otHours', t.ot.toFixed(2));
+    U.setVal('ph_comDaily', t.com.toFixed(2));
+    U.setVal('ph_comMonthly', Tiers.monthly(t.avg));
+    U.setVal('st_otHours', t.ot.toFixed(2));
+    U.setVal('st_comDaily', t.com.toFixed(2));
+    this.renderPharm();
+    this.renderStaff();
+  },
+
+  bind(){
+    const savePharm=U.debounce(()=>Store.set('pharmSalary', this.readPharm()), 600);
+    const saveStaff=U.debounce(()=>Store.set('staffSalary', this.readStaff()), 600);
+    document.addEventListener('input',(e)=>{
+      if (e.target.id?.startsWith('ph_')){ this.renderPharm(); savePharm(); }
+      if (e.target.id?.startsWith('st_')){ this.renderStaff(); saveStaff(); }
+    });
+  },
+
+  async load(){
+    const ph=await Store.get('pharmSalary', null);
+    if (ph) Object.entries(ph).forEach(([k,v])=>U.setVal('ph_'+k, v));
+    const st=await Store.get('staffSalary', null);
+    if (st) Object.entries(st).forEach(([k,v])=>U.setVal('st_'+k, v));
+    this.renderPharm(); this.renderStaff();
+  }
 };
 
-/* ============ 10) ADMIN PANEL ============ */
-let ADM_USERS = [], ADM_SUMMARY = [];
+/* ---------- [11] LEAVE ----------------------------------- */
+const Leave = {
+  rows: [],
+  async load(){ this.rows = await Store.get('leave', []); this.render(); },
+  render(){
+    U.$('leaveBody').innerHTML = this.rows.map((r,i)=>`
+      <tr><td>${r.date}</td><td>${r.type}</td><td>${r.note||''}</td>
+      <td><button class="btn-reset" data-del="${i}">ลบ</button></td></tr>`).join('');
+  },
+  bind(){
+    U.$('lv_addBtn').onclick = async () => {
+      const date=U.$('lv_date').value;
+      if (!date) return U.toast('กรุณาเลือกวันที่','warn');
+      this.rows.push({ date, type:U.$('lv_type').value, note:U.$('lv_note').value.trim() });
+      await Store.set('leave', this.rows);
+      U.$('lv_note').value='';
+      this.render();
+    };
+    U.$('leaveBody').addEventListener('click', async (e)=>{
+      const btn=e.target.closest('[data-del]'); if(!btn) return;
+      this.rows.splice(+btn.dataset.del,1);
+      await Store.set('leave', this.rows);
+      this.render();
+    });
+  }
+};
 
-async function adminCall(action, payload = {}) {
-  const { data: { session } } = await sb.auth.getSession();
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-api`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${session.access_token}`
-    },
-    body: JSON.stringify({ action, payload })
-  });
-  const out = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(out.error || 'เกิดข้อผิดพลาด');
-  return out;
+/* ---------- [12] ADMIN ------------------------------------ */
+const Admin = {
+  async call(action, payload={}){
+    const {data, error} = await sb.functions.invoke(CONFIG.ADMIN_FN, { body:{action, payload} });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+
+  async loadUsers(){
+    try{
+      const list = await this.call('list-users');
+      U.$('userListBody').innerHTML = list.map(u=>`
+        <tr>
+          <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${u.role}</td>
+          <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
+        </tr>`).join('');
+    }catch(err){ U.toast('โหลดรายชื่อผู้ใช้ไม่สำเร็จ: '+err.message,'error'); }
+  },
+
+  bind(){
+    U.$('ad_saveCodeBtn').onclick = async () => {
+      const code=U.$('ad_newCode').value.trim();
+      if (!code) return U.toast('กรอกโค้ดลับใหม่','warn');
+      try{ await this.call('set-pharm-code', {code}); U.toast('เปลี่ยนโค้ดลับแล้ว','ok'); }
+      catch(err){ U.toast(err.message,'error'); }
+    };
+
+    U.$('userListBody').addEventListener('click', async (e)=>{
+      const btn=e.target.closest('[data-reset-user]'); if(!btn) return;
+      const newPass=prompt('กรอกรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)');
+      if (!newPass) return;
+      try{
+        await this.call('reset-password', { user_id:btn.dataset.resetUser, new_password:newPass });
+        U.toast('รีเซ็ตรหัสผ่านสำเร็จ','ok');
+      }catch(err){ U.toast(err.message,'error'); }
+    });
+
+    U.$('ad_loadSummaryBtn').onclick = async () => {
+      const month=U.$('ad_month').value;
+      if (!month) return U.toast('เลือกเดือนก่อน','warn');
+      try{
+        const rows = await this.call('salary-summary', {month});
+        this._summary = rows;
+        U.$('summaryBody').innerHTML = rows.map(r=>`
+          <tr><td>${r.full_name}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td></tr>`).join('');
+      }catch(err){ U.toast(err.message,'error'); }
+    };
+
+    U.$('ad_exportSummaryBtn').onclick = () => Export.summaryXlsx(this._summary||[]);
+  }
+};
+
+/* ---------- [13] EXPORT (Excel / PDF) --------------------- */
+const Export = {
+  dailyXlsx(){
+    const ws = XLSX.utils.json_to_sheet(Daily.rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ยอดขายรายวัน');
+    XLSX.writeFile(wb, 'ยอดขายรายวัน.xlsx');
+  },
+  staffXlsx(){
+    const p = Salary.readStaff();
+    const ws = XLSX.utils.json_to_sheet([p]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'เงินเดือนพนักงาน');
+    XLSX.writeFile(wb, 'เงินเดือนพนักงาน.xlsx');
+  },
+  pharmXlsx(){
+    const p = Salary.readPharm();
+    const ws = XLSX.utils.json_to_sheet([p]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'เงินเดือนเภสัชกร');
+    XLSX.writeFile(wb, 'เงินเดือนเภสัชกร.xlsx');
+  },
+  summaryXlsx(rows){
+    if (!rows.length) return U.toast('ยังไม่มีข้อมูลสรุป','warn');
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'สรุปเงินเดือน');
+    XLSX.writeFile(wb, 'สรุปเงินเดือนรวม.xlsx');
+  },
+  async pdf(sectionId, filename){
+    const el = U.$(sectionId);
+    const canvas = await html2canvas(el, {backgroundColor:'#1e293b'});
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','pt','a4');
+    const imgData = canvas.toDataURL('image/png');
+    const w = pdf.internal.pageSize.getWidth();
+    const h = canvas.height * w / canvas.width;
+    pdf.addImage(imgData,'PNG',0,0,w,h);
+    pdf.save(filename);
+  }
+};
+
+/* ---------- [14] APP (role/tabs/boot) --------------------- */
+const App = {
+  async boot(){
+    const { data:{ session } } = await sb.auth.getSession();
+    if (!session){ U.$('authOverlay').classList.remove('hide'); U.$('appShell').classList.add('hide'); return; }
+
+    CURRENT_USER = session.user;
+    const { data: profile } = await sb.from('profiles').select('role, full_name').eq('id', CURRENT_USER.id).single();
+    CURRENT_ROLE = profile?.role || 'staff';
+
+    U.$('authOverlay').classList.add('hide');
+    U.$('appShell').classList.remove('hide');
+    U.setText('whoami', `${profile?.full_name||CURRENT_USER.email} (${CURRENT_ROLE})`);
+
+    this.applyRoleVisibility();
+    this.bindTabs();
+    this.openDefaultTab();
+
+    await Promise.all([ Tiers.load(), Leave.load(), Salary.load() ]);
+    Daily.rows = await Store.get('daily', null); 
+    if (!Daily.rows){ Daily.init(); }
+    Daily.recalcAll();
+    Daily.render();
+    Tiers.render();
+
+    if (CURRENT_ROLE === 'admin') Admin.loadUsers();
+  },
+
+  applyRoleVisibility(){
+    const role = CURRENT_ROLE;
+    U.$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
+    U.$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
+    U.$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
+  },
+
+  bindTabs(){
+    U.$('#tabNav button').forEach(btn=>{
+      btn.onclick = () => this.showTab(btn.dataset.tab);
+    });
+  },
+  showTab(name){
+    U.$('#tabNav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+    U.$('.tab').forEach(s=>s.classList.add('hide'));
+    U.$(`tab-${name}`)?.classList.remove('hide');
+  },
+  openDefaultTab(){
+    const role=CURRENT_ROLE;
+    const first = role==='pharmacist' ? 'daily' : role==='staff' ? 'staff' : 'admin';
+    this.showTab(first);
+  }
+};
+
+/* ---------- [15] EXPORT BUTTON BINDINGS ------------------- */
+function bindExportButtons(){
+  U.$('btnExportXlsxPharm').onclick = () => Export.pharmXlsx();
+  U.$('btnExportPdfPharm').onclick  = () => Export.pdf('tab-salary','เงินเดือนเภสัชกร.pdf');
+  U.$('btnExportXlsxStaff').onclick = () => Export.staffXlsx();
 }
-const admMsg = t => setTxt('admStatus', t);
 
-async function admLoadUsers(){
-  admMsg('กำลังโหลด...');
-  try { ADM_USERS = (await adminCall('listUsers')).users; admRenderUsers(); admMsg(`ผู้ใช้ทั้งหมด ${ADM_USERS.length} คน`); }
-  catch(e){ admMsg(e.message); }
-}
-function admRenderUsers(){
-  const q = $('admSearch').value.trim().toLowerCase();
-  const rf = $('admFilterRole').value;
-  const ROLE_TH = { staff:'พนักงาน/ผู้ช่วย', pharmacist:'เภสัชกรสาขา', admin:'ผู้ดูแลระบบ' };
-  const rows = ADM_USERS.filter(u =>
-    (!rf || u.role === rf) &&
-    (!q || [u.email,u.displayName,u.branch].join(' ').toLowerCase().includes(q)));
+/* ---------- [16] INIT ------------------------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  Auth.bind();
+  Daily.bind();
+  Salary.bind();
+  Tiers.bind();
+  Leave.bind();
+  Admin.bind();
+  bindExportButtons();
 
-  $('admUserBody').innerHTML = rows.map(u => `
-    <tr>
-      <td class="l">${u.email}${u.id===CURRENT_USER.id?' <b>(คุณ)</b>':''}</td>
-      <td><input class="txt adm-name" data-id="${u.id}" value="${u.displayName}"></td>
-      <td><input class="txt adm-branch" data-id="${u.id}" value="${u.branch}"></td>
-      <td><select class="adm-role" data-id="${u.id}">
-        ${Object.entries(ROLE_TH).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}
-      </select></td>
-      <td style="color:${u.active?'var(--ok)':'var(--bad)'}">${u.active?'ใช้งาน':'ระงับ'}</td>
-      <td style="font-size:11.5px">${u.lastSignIn ? new Date(u.lastSignIn).toLocaleDateString('th-TH') : '-'}</td>
-      <td style="white-space:nowrap">
-        <button class="ghost adm-save"   data-id="${u.id}">บันทึก</button>
-        <button class="ghost adm-pass"   data-id="${u.id}">รหัสผ่าน</button>
-        <button class="ghost adm-toggle" data-id="${u.id}" data-active="${u.active}">${u.active?'ระงับ':'เปิด'}</button>
-        <button class="ghost adm-del"    data-id="${u.id}" style="color:var(--bad)">ลบ</button>
-      </td>
-    </tr>`).join('') || '<tr><td colspan="7">ไม่พบผู้ใช้</td></tr>';
-  admBindRowButtons();
-}
-function admBindRowButtons(){
-  const id = el => el.dataset.id;
-  const val = (cls, i) => document.querySelector(`.${cls}[data-id="${i}"]`).value;
-
-  document.querySelectorAll('.adm-save').forEach(b => b.onclick = async () => {
-    const i = id(b);
-    try {
-      await adminCall('updateProfile', { userId:i, displayName:val('adm-name',i), branch:val('adm-branch',i) });
-      await adminCall('setRole', { userId:i, role: val('adm-role',i) });
-      admMsg('บันทึกแล้ว'); admLoadUsers();
-    } catch(e){ admMsg(e.message); }
-  });
-  document.querySelectorAll('.adm-pass').forEach(b => b.onclick = async () => {
-    const np = prompt('ตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)');
-    if (!np) return;
-    try { await adminCall('resetPassword', { userId:id(b), newPassword:np }); admMsg('รีเซ็ตรหัสผ่านแล้ว'); }
-    catch(e){ admMsg(e.message); }
-  });
-  document.querySelectorAll('.adm-toggle').forEach(b => b.onclick = async () => {
-    const active = b.dataset.active !== 'true';
-    if (!confirm(active ? 'เปิดใช้งานบัญชีนี้?' : 'ระงับบัญชีนี้?')) return;
-    try { await adminCall('toggleActive', { userId:id(b), active }); admLoadUsers(); }
-    catch(e){ admMsg(e.message); }
-  });
-  document.querySelectorAll('.adm-del').forEach(b => b.onclick = async () => {
-    if (!confirm('ลบผู้ใช้และข้อมูลเงินเดือนทั้งหมดถาวร? การกระทำนี้ย้อนกลับไม่ได้')) return;
-    try { await adminCall('deleteUser', { userId:id(b) }); admMsg('ลบแล้ว'); admLoadUsers(); }
-    catch(e){ admMsg(e.message); }
-  });
-}
-$('admShowSecret').onclick = async () => {
-  try { $('admSecret').value = (await adminCall('getSecret')).code; admMsg('แสดงโค้ดปัจจุบันแล้ว'); }
-  catch(e){ admMsg(e.message); }
-};
-$('admSaveSecret').onclick = async () => {
-  const code = $('admSecret').value.trim();
-  if (!confirm(`เปลี่ยนโค้ดลับเป็น "${code}" ?`)) return;
-  try { await adminCall('setSecret', { code }); admMsg('บันทึกโค้ดใหม่แล้ว'); }
-  catch(e){ admMsg(e.message); }
-};
-$('admLoadSummary').onclick = async () => {
-  const ym = `${curYear}-${String(curMonth).padStart(2,'0')}`;
-  admMsg('กำลังดึงข้อมูล...');
-  try {
-    ADM_SUMMARY = (await adminCall('payrollSummary', { ym })).rows;
-    setTxt('admSumLabel', monthLabel());
-    let total = 0;
-    $('admSumBody').innerHTML = ADM_SUMMARY.map(r => {
-      total += r.net;
-      return `<tr><td class="l">${r.displayName||'-'}</td><td class="l">${r.email}</td>
-        <td class="l">${r.branch||'-'}</td><td>${r.type}</td>
-        <td class="r">${fmt(r.income)}</td><td class="r">${fmt(r.allow)}</td>
-        <td class="r">${fmt(r.deduct)}</td><td class="r"><b>${fmt(r.net)}</b></td></tr>`;
-    }).join('') || '<tr><td colspan="8">ไม่มีข้อมูลในเดือนนี้</td></tr>';
-    setTxt('admSumNet', fmt(total));
-    admMsg(`พบ ${ADM_SUMMARY.length} รายการ`);
-  } catch(e){ admMsg(e.message); }
-};
-$('admExportSummary').onclick = () => {
-  if (!ADM_SUMMARY.length) return admMsg('ยังไม่มีข้อมูล กด "ดึงข้อมูล" ก่อน');
-  const rows = [[`สรุปเงินเดือน ${monthLabel()}`],
-    ['ชื่อ','อีเมล','สาขา','ประเภท','รายได้','เบิก','หัก','สุทธิ']];
-  ADM_SUMMARY.forEach(r => rows.push([r.displayName,r.email,r.branch,r.type,r.income,r.allow,r.deduct,r.net]));
-  rows.push([],['รวมสุทธิ','','','','','','',ADM_SUMMARY.reduce((s,r)=>s+r.net,0)]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'สรุป');
-  XLSX.writeFile(wb, `summary-${curYear}-${String(curMonth).padStart(2,'0')}.xlsx`);
-};
-$('admReload').onclick = admLoadUsers;
-$('admSearch').addEventListener('input', admRenderUsers);
-$('admFilterRole').onchange = admRenderUsers;
+  sb.auth.onAuthStateChange((_event, _session) => App.boot());
+  App.boot();
+});
 </script>
 </body>
 </html>
