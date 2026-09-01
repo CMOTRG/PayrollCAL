@@ -2,1266 +2,664 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>คำนวณเงินเดือนเภสัชกร</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบคิดเงินเดือน CMO</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root{
-    --bg: #FAF9F5;
-    --panel: #FFFFFF;
-    --ink: #20291F;
-    --ink-soft: #5B6459;
-    --line: #DDE2D6;
-    --green: #3F8F5B;
-    --green-deep: #2C6B41;
-    --green-wash: #E7F1E6;
-    --lavender: #7A6FC0;
-    --lavender-wash: #ECE9F8;
-    --sand: #C98A3B;
-    --sand-wash: #FBEEDA;
-    --red: #B5433A;
-    --red-wash: #FBEAE8;
-    --blue: #4C7CA8;
-    --blue-wash: #E7EFF6;
-    --radius: 10px;
-    --shadow: 0 1px 2px rgba(32,41,31,0.06), 0 4px 14px rgba(32,41,31,0.05);
-  }
-  *{ box-sizing: border-box; }
-  html,body{ margin:0; padding:0; }
-  body{
-    background: var(--bg);
-    color: var(--ink);
-    font-family: 'Sarabun', sans-serif;
-    font-size: 14.5px;
-    line-height:1.5;
-    padding-bottom: 80px;
-  }
-  .num{ font-family:'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+:root{--bg:#f4f6fb;--card:#fff;--line:#dfe4ee;--pri:#2f6fed;--ok:#15a06a;--bad:#e04a4a;--txt:#1f2937}
+*{box-sizing:border-box;font-family:"Noto Sans Thai",system-ui,-apple-system,sans-serif}
+body{margin:0;background:var(--bg);color:var(--txt);font-size:14px}
+input,select,button{font:inherit}
+input,select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+input:focus,select:focus{outline:2px solid #bcd0fb;border-color:var(--pri)}
+button{padding:9px 14px;border:0;border-radius:8px;background:var(--pri);color:#fff;cursor:pointer;font-weight:600}
+button.ghost{background:#eef2fb;color:var(--pri)}
+button.link{background:none;color:var(--pri);text-decoration:underline;padding:6px;font-weight:500}
+button:disabled{opacity:.55;cursor:not-allowed}
+.hide{display:none!important}
 
-  header.top{
-    position: sticky; top:0; z-index: 40;
-    background: linear-gradient(180deg, var(--green-deep), var(--green));
-    color: #fff;
-    padding: 14px 20px 12px;
-    box-shadow: var(--shadow);
-  }
-  header.top .row1{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  header.top h1{ font-size:17px; margin:0; font-weight:700; letter-spacing:.2px; }
-  header.top .sub{ font-size:12px; opacity:.85; margin-top:2px; }
-  .branch-input{
-    background: rgba(255,255,255,.14);
-    border: 1px solid rgba(255,255,255,.35);
-    color:#fff; border-radius:7px; padding:5px 9px; font-family:'Sarabun';
-    font-size:13px; min-width: 190px;
-  }
-  .branch-input::placeholder{ color: rgba(255,255,255,.7); }
-  .month-controls{ display:flex; align-items:center; gap:6px; margin-left:auto; }
-  .month-controls button{
-    background: rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35);
-    color:#fff; width:28px; height:28px; border-radius:7px; cursor:pointer; font-size:15px;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .month-controls button:hover{ background: rgba(255,255,255,.28); }
-  .month-label{ font-weight:600; font-size:13.5px; min-width:112px; text-align:center; }
-  .save-pill{
-    font-size:11px; padding:3px 9px; border-radius:20px; background:rgba(255,255,255,.16);
-    border:1px solid rgba(255,255,255,.3); white-space:nowrap;
-  }
+/* ---------- Auth ---------- */
+.auth-overlay{position:fixed;inset:0;background:linear-gradient(160deg,#2f6fed,#6ea8ff);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.auth-card{background:#fff;border-radius:16px;padding:26px;width:100%;max-width:400px;box-shadow:0 18px 45px rgba(0,0,0,.22)}
+.auth-card h2{margin:0 0 4px;font-size:20px}
+.auth-card p.sub{margin:0 0 18px;color:#6b7280;font-size:13px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#4b5563}
+.auth-msg{font-size:13px;margin:8px 0;min-height:18px}
+.auth-msg.err{color:var(--bad)} .auth-msg.ok{color:var(--ok)}
+.hint{font-size:11.5px;color:#6b7280;margin-top:4px}
 
-  nav.tabs{
-    display:flex; gap:4px; padding: 8px 16px 0; background: var(--green-deep);
-    overflow-x:auto;
-  }
-  nav.tabs button{
-    background:none; border:none; color: rgba(255,255,255,.72); font-family:'Sarabun';
-    font-size:13.5px; font-weight:600; padding:9px 14px 11px; cursor:pointer; white-space:nowrap;
-    border-bottom: 3px solid transparent;
-  }
-  nav.tabs button.active{ color:#fff; border-bottom-color: var(--sand); }
-  nav.tabs button:hover{ color:#fff; }
-
-  main{ max-width: 980px; margin: 20px auto; padding: 0 16px; }
-  .panel{
-    background: var(--panel); border:1px solid var(--line); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 16px; margin-bottom: 18px;
-  }
-  .panel h2{ font-size:15px; margin:0 0 4px; font-weight:700; }
-  .panel .hint{ font-size:12.5px; color: var(--ink-soft); margin-bottom:12px; }
-
-  table{ width:100%; border-collapse: collapse; }
-  th, td{ padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; font-size:13.5px; }
-  th{ font-weight:600; color: var(--ink-soft); font-size:12px; text-transform: none; background: #F4F5F0; position: sticky; top:0; }
-  tbody tr:hover{ background: #FBFBF8; }
-  td.num, th.num{ text-align:right; }
-  input[type=number], input[type=text]{
-    width:100%; border:1px solid var(--line); border-radius:6px; padding:5px 7px;
-    font-family:'IBM Plex Mono', monospace; font-size:13px; background:#fff; color:var(--ink);
-  }
-  input[type=text]{ font-family:'Sarabun'; }
-  input.num-input{ font-family:'IBM Plex Mono', monospace; text-align:right; }
-  input[type=number]:focus, input[type=text]:focus{ outline:2px solid var(--green); outline-offset:1px; }
-  .readonly{
-    background: #F4F5F0; color: var(--ink-soft); border-radius:6px; padding:5px 7px;
-    font-family:'IBM Plex Mono', monospace; text-align:right; font-size:13px;
-  }
-
-  .daily-wrap{ max-height: 520px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
-  .daily-wrap table th{ top:0; }
-  tr.total-row td{ font-weight:700; background: var(--lavender-wash); position: sticky; bottom:0; }
-  tr.total-row td:first-child{ color: var(--lavender); }
-  td.day-cell{ font-weight:700; color: var(--lavender); font-family:'IBM Plex Mono'; }
-
-  .section-label{
-    font-weight:700; font-size:12.5px; color: var(--green-deep); text-transform: uppercase;
-    letter-spacing:.4px; padding: 10px 0 4px;
-  }
-  .section-label.ded{ color: var(--red); }
-  tr.item td{ }
-  tr.item.ded td.amt{ color: var(--red); }
-  .note-static{
-    font-size:12px; color: var(--ink-soft); background: var(--sand-wash); border-radius:6px;
-    padding:8px 10px; margin: 6px 0 2px;
-  }
-  .small-note-input{ width: 140px; font-size:12px; }
-
-  .footer-total{
-    position: fixed; bottom:0; left:0; right:0; z-index:30;
-    background: var(--panel); border-top:2px solid var(--green);
-    box-shadow: 0 -4px 18px rgba(32,41,31,.08);
-    display:flex; align-items:center; justify-content:center; gap:14px;
-    padding: 10px 16px;
-  }
-  .footer-total .label{ font-size:13px; color: var(--ink-soft); font-weight:600; }
-  .footer-total .value{ font-size:22px; font-weight:700; color: var(--green-deep); font-family:'IBM Plex Mono'; }
-
-  .warning{
-    background: var(--sand-wash); border:1px solid #E9C486; color:#7A5417;
-    border-radius:8px; padding:10px 12px; font-size:12.5px; margin-bottom:14px;
-  }
-  .warning b{ color:#5B3E0E; }
-
-  .tier-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 700px){ .tier-grid{ grid-template-columns: 1fr; } }
-  .tier-table td input{ padding:4px 6px; font-size:12.5px; }
-  .tier-actions{ display:flex; gap:8px; margin-top:10px; }
-  .btn{
-    border:1px solid var(--line); background:#fff; border-radius:7px; padding:6px 12px;
-    font-family:'Sarabun'; font-size:12.5px; cursor:pointer; font-weight:600; color:var(--ink);
-  }
-  .btn:hover{ background:#F4F5F0; }
-  .btn.primary{ background: var(--green); color:#fff; border-color:var(--green); }
-  .btn.primary:hover{ background: var(--green-deep); }
-  .btn.ghost.small{ padding:3px 8px; font-size:11.5px; }
-
-  .info-row{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; }
-  .info-card{
-    background: var(--blue-wash); border-radius:8px; padding:9px 13px; flex:1; min-width:150px;
-  }
-  .info-card .k{ font-size:11px; color: var(--ink-soft); font-weight:600; }
-  .info-card .v{ font-size:16px; font-weight:700; color: var(--blue); font-family:'IBM Plex Mono'; }
-
-  .hint-suggest{ font-size:11.5px; color: var(--ink-soft); margin-top:3px; }
-  .hint-suggest button{ background:none; border:none; color:var(--green-deep); font-weight:700; cursor:pointer; font-size:11.5px; padding:0; text-decoration: underline; }
-
-  .auth-overlay{
-    position:fixed; inset:0; z-index: 100;
-    background: linear-gradient(160deg, var(--green-deep), var(--green));
-    display:flex; align-items:center; justify-content:center; padding:20px;
-  }
-  .auth-card{
-    background:#fff; border-radius:14px; padding:26px 24px; width:100%; max-width:320px;
-    box-shadow: var(--shadow);
-  }
-  .auth-card h2{ margin:0 0 4px; font-size:17px; }
-  .auth-card .hint{ margin-bottom:4px; }
-  .auth-card input{
-    width:100%; margin-top:10px; padding:9px 11px; border:1px solid var(--line); border-radius:8px;
-    font-family:'Sarabun'; font-size:14px;
-  }
-  .auth-error{ font-size:12px; margin-top:8px; min-height:14px; color: var(--red); }
-  .auth-error.ok{ color: var(--green-deep); }
-  .auth-note{ font-size:11px; color: var(--ink-soft); margin-top:14px; line-height:1.5; }
-
-  .header-actions{ display:flex; gap:6px; margin-left:6px; }
-  .icon-btn{
-    background: rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.32); color:#fff;
-    border-radius:7px; padding:5px 9px; font-size:11.5px; cursor:pointer; font-family:'Sarabun'; font-weight:600;
-  }
-  .icon-btn:hover{ background: rgba(255,255,255,.26); }
-
-  .export-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .export-row .btn{ display:flex; align-items:center; gap:5px; }
+/* ---------- Shell ---------- */
+header{background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+header h1{font-size:17px;margin:0;flex:1}
+.badge{background:#eef2fb;color:var(--pri);padding:4px 11px;border-radius:99px;font-size:12px;font-weight:700}
+.badge.staff{background:#e7f7ef;color:var(--ok)}
+nav{display:flex;gap:6px;padding:10px 18px;flex-wrap:wrap;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:57px;z-index:19}
+nav button{background:#eef2fb;color:#475569}
+nav button.active{background:var(--pri);color:#fff}
+main{padding:18px;max-width:1180px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font-size:15px}
+.card h4{margin:16px 0 8px;font-size:13.5px;color:var(--pri)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.row>div{flex:1;min-width:140px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid var(--line);padding:5px 7px;text-align:center}
+th{background:#f0f3fa;font-weight:600}
+td.l,th.l{text-align:left} td.r{text-align:right}
+table input{padding:4px 6px;border-radius:6px;text-align:right}
+table input.txt{text-align:left}
+.wrap{overflow-x:auto}
+.sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:14px}
+.sum div{background:#f7f9fd;border:1px solid var(--line);border-radius:10px;padding:11px}
+.sum span{display:block;font-size:11.5px;color:#6b7280}
+.sum b{font-size:17px}
+.sum .net{background:#e9f2ff;border-color:#b9d2ff}
+.sum .net b{color:var(--pri)}
+.status{font-size:12px;color:#6b7280;margin-left:auto}
+@media(max-width:640px){nav{top:auto;position:static}header{position:static}}
 </style>
 </head>
 <body>
 
+<!-- ============ AUTH ============ -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card">
     <h2 id="authTitle">เข้าสู่ระบบ</h2>
-    <div class="hint" id="authSubtitle"></div>
-    <input type="email" id="authEmailInput" placeholder="อีเมล" autocomplete="email">
-    <input type="password" id="authPassInput" placeholder="รหัสผ่าน" autocomplete="current-password">
-    <input type="password" id="authPassConfirm" placeholder="ยืนยันรหัสผ่าน" style="display:none;" autocomplete="new-password">
-    <div class="auth-error" id="authError"></div>
-    <button class="btn primary" id="authSubmitBtn" style="width:100%;margin-top:6px;">เข้าสู่ระบบ</button>
-    <button class="btn ghost small" id="authToggleModeBtn" style="width:100%;margin-top:8px;background:none;border:none;">ยังไม่มีบัญชี? สมัครสมาชิก</button>
-    <div class="auth-note">ข้อมูลบัญชี/รหัสผ่านจัดการโดย Supabase Auth และเก็บข้อมูลเงินเดือนไว้ในฐานข้อมูลออนไลน์ของโปรเจกต์นี้เท่านั้น เข้าใช้งานได้จากหลายเครื่อง/อุปกรณ์</div>
+    <p class="sub">ระบบคิดเงินเดือน คลินิกยา มอ ออ</p>
+
+    <div class="field"><label>อีเมล</label>
+      <input type="email" id="authEmail" autocomplete="email" placeholder="you@example.com"></div>
+
+    <div class="field"><label>รหัสผ่าน</label>
+      <input type="password" id="authPass" autocomplete="current-password" placeholder="อย่างน้อย 6 ตัวอักษร"></div>
+
+    <div class="field hide" id="wrapPass2"><label>ยืนยันรหัสผ่าน</label>
+      <input type="password" id="authPass2" autocomplete="new-password"></div>
+
+    <div class="field hide" id="wrapRole"><label>ประเภทผู้ใช้งาน</label>
+      <select id="authRole">
+        <option value="staff">พนักงาน / ผู้ช่วย</option>
+        <option value="pharmacist">เภสัชกรสาขา</option>
+      </select></div>
+
+    <div class="field hide" id="wrapName"><label>ชื่อ-สกุล</label>
+      <input type="text" id="authName" placeholder="เช่น สมชาย ใจดี"></div>
+
+    <div class="field hide" id="wrapBranch"><label>สาขา</label>
+      <input type="text" id="authBranch" placeholder="เช่น สาขาหาดใหญ่"></div>
+
+    <div class="field hide" id="wrapSecret"><label>โค้ดลับสำหรับเภสัชกรสาขา</label>
+      <input type="password" id="authSecret" placeholder="กรอกโค้ดลับ">
+      <div class="hint">* ต้องมีโค้ดลับจากบริษัทเท่านั้นจึงจะสมัครเป็นเภสัชกรสาขาได้ (พนักงาน/ผู้ช่วย ไม่ต้องกรอก)</div></div>
+
+    <div class="auth-msg" id="authMsg"></div>
+    <button id="authSubmit" style="width:100%">เข้าสู่ระบบ</button>
+    <button id="authToggle" class="link" style="width:100%;margin-top:6px">ยังไม่มีบัญชี? สมัครสมาชิก</button>
   </div>
 </div>
 
-<div id="appShell" style="display:none;">
-<header class="top">
-  <div class="row1">
-    <div>
-      <h1>คำนวณเงินเดือนเภสัชกร</h1>
-      <div class="sub">กรอกยอดขายรายวัน แล้วระบบคำนวณคอมมิชชั่นและเงินเดือนสุทธิให้อัตโนมัติ</div>
-    </div>
-    <div class="month-controls">
-      <button id="prevMonth" title="เดือนก่อนหน้า">‹</button>
-      <div class="month-label" id="monthLabel">-</div>
-      <button id="nextMonth" title="เดือนถัดไป">›</button>
-    </div>
-  </div>
-  <div class="row1" style="margin-top:8px;">
-    <input class="branch-input" id="branchInput" placeholder="ชื่อสาขา เช่น คลินิคยา มอ ออ ตรัง">
-    <div class="save-pill" id="saveStatus">พร้อมใช้งาน</div>
-    <div class="header-actions">
-      <button class="icon-btn" id="changePassBtn">เปลี่ยนรหัสผ่าน</button>
-      <button class="icon-btn" id="lockBtn">ออกจากระบบ</button>
-    </div>
-  </div>
+<!-- ============ APP ============ -->
+<div id="appShell" class="hide">
+<header>
+  <h1>ระบบคิดเงินเดือน CMO</h1>
+  <span class="badge" id="roleBadge">-</span>
+  <span style="font-size:12.5px;color:#6b7280" id="userEmail"></span>
+  <button class="ghost" id="btnLogout">ออกจากระบบ</button>
 </header>
 
-<nav class="tabs">
-  <button data-tab="daily" class="active">ยอดขายรายวัน</button>
-  <button data-tab="salary">สรุปเงินเดือน</button>
-  <button data-tab="tiers">ตารางค่าคอม</button>
-  <button data-tab="leave">วันหยุด/วันลา</button>
+<nav id="tabNav">
+  <button data-tab="daily"  data-role="pharmacist">ยอดขายรายวัน</button>
+  <button data-tab="salary" data-role="pharmacist">สรุปเงินเดือน</button>
+  <button data-tab="tiers"  data-role="pharmacist">ตั้งค่าขั้นคอมมิชชั่น</button>
+  <button data-tab="staff"  data-role="staff">คิดเงินเดือน</button>
+  <button data-tab="leave"  data-role="both">วันลา</button>
 </nav>
 
 <main>
-
-  <!-- TAB: DAILY -->
-  <section class="panel" data-panel="daily">
-    <h2>บันทึกยอดขายรายวัน</h2>
-    <div class="hint">กรอกยอดขาย (ยอด), จำนวนเคส และชั่วโมง OT ของแต่ละวัน — คอมรายวันจะคำนวณให้อัตโนมัติจากตารางค่าคอม</div>
-
-
-    <div class="info-row">
-      <div class="info-card"><div class="k">ยอดขายรวมทั้งเดือน</div><div class="v num" id="infoTotalSales">0</div></div>
-      <div class="info-card"><div class="k">ค่าเฉลี่ยยอด/วัน</div><div class="v num" id="infoAvgSales">0</div></div>
-      <div class="info-card"><div class="k">คอมรายวันรวม</div><div class="v num" id="infoTotalDailyCom">0</div></div>
+  <div class="card">
+    <div class="row">
+      <div><label style="font-size:12px">เดือน</label>
+        <select id="selMonth"></select></div>
+      <div><label style="font-size:12px">ปี (พ.ศ.)</label>
+        <input type="number" id="inpYear"></div>
+      <div><label style="font-size:12px">สาขา</label>
+        <input type="text" id="inpBranch" placeholder="ชื่อสาขา"></div>
+      <div style="flex:0 0 auto"><button class="ghost" id="btnExportXlsx">Excel</button></div>
+      <div style="flex:0 0 auto"><button class="ghost" id="btnExportPdf">PDF</button></div>
+      <span class="status" id="saveStatus"></span>
     </div>
+  </div>
 
-    <details style="margin-bottom:12px;" open>
-      <summary style="cursor:pointer; font-weight:600; font-size:12.5px; color: var(--green-deep);">นำเข้า OT รายวัน (จากรูปภาพตารางเข้า-ออกงาน)</summary>
-      <div style="margin-top:8px; padding:10px; background:#F4F5F0; border-radius:8px;">
-        <div class="hint" style="margin-bottom:6px;">อัปโหลดรูปภาพ (หรือหน้าจอ) ของตารางลงเวลาเข้า-ออกงาน ระบบจะอ่านเวลาเข้างานแรกและเวลาออกงานสุดท้ายของแต่ละวัน แล้วคำนวณ OT = (เวลาออก − เวลาเข้า) − พัก 1 ชม. − มาตรฐาน 8 ชม. ให้อัตโนมัติ</div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <input type="file" id="otImageInput" accept="image/*,.pdf" style="font-size:12.5px;">
-          <button class="btn primary" id="processImageBtn">อ่านตารางจากรูปภาพ</button>
-          <span class="hint-suggest" id="otImageStatus"></span>
-        </div>
-        <div id="otImagePreviewWrap" style="margin-top:8px; display:none;">
-          <img id="otImagePreview" style="max-width:180px; max-height:220px; border-radius:6px; border:1px solid var(--line);">
-        </div>
+  <!-- ---------- เภสัชกร: ยอดขายรายวัน ---------- -->
+  <section id="tab-daily" class="card hide">
+    <h3>ยอดขายรายวัน</h3>
+    <div class="wrap"><table id="dailyTable">
+      <thead><tr><th>วันที่</th><th>ยอดขาย</th><th>เคส</th><th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม.)</th><th>คอมรายวัน</th></tr></thead>
+      <tbody id="dailyBody"></tbody>
+      <tfoot><tr><th>รวม</th><th id="sumSales">0.00</th><th id="sumCases">0</th><th colspan="2">เฉลี่ย/วัน <span id="avgSales">0.00</span></th><th id="sumOt">0.00</th><th id="sumComDaily">0.00</th></tr></tfoot>
+    </table></div>
+  </section>
 
-        <div class="hint" style="margin:12px 0 6px;">หรือวางข้อมูลเองทีละบรรทัด รูปแบบ <span class="num">วันที่,ชั่วโมงOT</span> เช่น <span class="num">1,2.33</span></div>
-        <textarea id="otImportText" rows="5" style="width:100%; font-family:'IBM Plex Mono',monospace; font-size:12.5px; border:1px solid var(--line); border-radius:6px; padding:8px;" placeholder="1,2.33&#10;3,2.28&#10;4,2.00"></textarea>
-        <div class="tier-actions">
-          <button class="btn primary" id="importOtBtn">นำเข้า OT</button>
-          <span class="hint-suggest" id="otImportStatus"></span>
-        </div>
-      </div>
-    </details>
-
-    <div class="daily-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:50px;">วันที่</th>
-            <th class="num">ยอด (บาท)</th>
-            <th class="num">เคส</th>
-            <th class="num">OT (ชม.)</th>
-            <th class="num">คอมรายวัน</th>
-          </tr>
-        </thead>
-        <tbody id="dailyBody"></tbody>
-        <tfoot>
-          <tr class="total-row">
-            <td>รวม</td>
-            <td class="num num-cell" id="sumSales">0</td>
-            <td class="num num-cell" id="sumCases">0</td>
-            <td class="num num-cell" id="sumOT">0</td>
-            <td class="num num-cell" id="sumCom">0</td>
-          </tr>
-        </tfoot>
-      </table>
+  <!-- ---------- เภสัชกร: สรุปเงินเดือน ---------- -->
+  <section id="tab-salary" class="card hide">
+    <h3>สรุปเงินเดือน เภสัชกรสาขา</h3>
+    <h4>รายได้ประจำ</h4>
+    <div class="row">
+      <div><label style="font-size:12px">เงินเดือน</label><input type="number" id="ph_salary" value="0"></div>
+      <div><label style="font-size:12px">ค่าตำแหน่ง</label><input type="number" id="ph_position" value="0"></div>
+      <div><label style="font-size:12px">ค่าประสบการณ์</label><input type="number" id="ph_exp" value="0"></div>
+      <div><label style="font-size:12px">ค่าใบประกอบวิชาชีพ</label><input type="number" id="ph_license" value="0"></div>
+    </div>
+    <h4>รายการเบิก</h4>
+    <div class="row">
+      <div><label style="font-size:12px">อัตรา OT / ชม.</label><input type="number" id="ph_otRate" value="80"></div>
+      <div><label style="font-size:12px">ค่า OT รวม (อัตโนมัติ)</label><input type="number" id="ph_otAmt" readonly></div>
+      <div><label style="font-size:12px">คอมรายวันรวม (อัตโนมัติ)</label><input type="number" id="ph_comDaily" readonly></div>
+      <div><label style="font-size:12px">คอมรายเดือน (อัตโนมัติ)</label><input type="number" id="ph_comMonth" readonly></div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div><label style="font-size:12px">ค่าเชียร์</label><input type="number" id="ph_cheer" value="0"></div>
+      <div><label style="font-size:12px">ค่า CI</label><input type="number" id="ph_ci" value="0"></div>
+      <div><label style="font-size:12px">ค่าน้ำมัน</label><input type="number" id="ph_fuel" value="0"></div>
+      <div><label style="font-size:12px">อื่นๆ</label><input type="number" id="ph_other" value="0"></div>
+    </div>
+    <h4>รายการหัก</h4>
+    <div class="row">
+      <div><label style="font-size:12px">ประกันสังคม</label><input type="number" id="ph_sso" value="0"></div>
+      <div><label style="font-size:12px">หักอื่นๆ</label><input type="number" id="ph_deductOther" value="0"></div>
+      <div><label style="font-size:12px">หมายเหตุ</label><input type="text" id="ph_deductNote"></div>
+    </div>
+    <div class="sum">
+      <div><span>รวมรายได้ประจำ</span><b id="ph_income">0.00</b></div>
+      <div><span>รวมรายการเบิก</span><b id="ph_allow">0.00</b></div>
+      <div><span>รวมรายการหัก</span><b id="ph_deduct">0.00</b></div>
+      <div class="net"><span>รวมสุทธิ</span><b id="ph_net">0.00</b></div>
     </div>
   </section>
 
-  <!-- TAB: SALARY -->
-  <section class="panel" data-panel="salary" style="display:none;">
-    <h2>สรุปคำนวณเงินเดือน</h2>
-    <div class="hint">รายการที่มีพื้นหลังเทาอ่อนคำนวณอัตโนมัติจากตารางยอดขายรายวัน ส่วนที่เหลือกรอกเองได้</div>
-
-    <div class="export-row">
-      <button class="btn" id="exportImageBtn">⬇ รูปภาพ (PNG)</button>
-      <button class="btn" id="exportPdfBtn">⬇ PDF</button>
-      <button class="btn" id="exportExcelBtn">⬇ Excel</button>
-      <span class="hint-suggest" id="exportStatus"></span>
-    </div>
-
-    <table>
-      <thead>
-        <tr><th>รายการ</th><th class="num" style="width:120px;">จำนวน</th><th class="num" style="width:80px;">ตัวคูณ</th><th class="num" style="width:130px;">จำนวน (บาท)</th><th style="width:170px;">หมายเหตุ</th></tr>
-      </thead>
-      <tbody>
-        <tr class="item"><td>เงินเดือน</td><td class="num"><input type="text" inputmode="decimal" id="in_salary"></td><td class="num">1</td><td class="num amt num-cell" id="amt_salary">0</td><td></td></tr>
-        <tr class="item"><td>ใบประกอบ</td><td class="num"><input type="text" inputmode="decimal" id="in_license"></td><td class="num">1</td><td class="num amt num-cell" id="amt_license">0</td><td></td></tr>
-        <tr class="item"><td>ประสบการณ์</td><td class="num"><input type="text" inputmode="decimal" id="in_experience"></td><td class="num">1</td><td class="num amt num-cell" id="amt_experience">0</td><td></td></tr>
-        <tr class="item"><td>ตำแหน่งอื่นๆ</td><td class="num"><input type="text" inputmode="decimal" id="in_otherPosition"></td><td class="num">1</td><td class="num amt num-cell" id="amt_otherPosition">0</td><td><input type="text" class="small-note-input" id="note_otherPosition" placeholder="เช่น ผจก/โมบาย"></td></tr>
-      </tbody>
-      <tbody id="extraBaseBody"></tbody>
-      <tbody>
-        <tr><td colspan="5" style="border-bottom:none; padding-top:2px; padding-bottom:10px;"><button type="button" class="btn ghost small" id="addBaseItemBtn">+ เพิ่มรายการ</button></td></tr>
-      </tbody>
-
-      <tbody>
-        <tr><td colspan="5" class="section-label">รายการเบิก</td></tr>
-        <tr class="item"><td>OT</td><td class="num"><span class="readonly" id="in_otHours">0</span></td><td class="num"><input type="text" inputmode="decimal" id="in_otRate" style="text-align:right;"></td><td class="num amt num-cell" id="amt_ot">0</td><td style="font-size:11.5px;color:var(--ink-soft);">ชม. รวมจากตารางยอดขาย</td></tr>
-        <tr class="item"><td>com รายวัน</td><td class="num"><span class="readonly" id="in_comDaily">0</span></td><td class="num">1</td><td class="num amt num-cell" id="amt_comDaily">0</td><td style="font-size:11.5px;color:var(--ink-soft);">รวมจากตารางยอดขาย</td></tr>
-        <tr class="item"><td>com รายเดือน</td><td class="num"><input type="text" inputmode="decimal" id="in_comMonthly"></td><td class="num">1</td><td class="num amt num-cell" id="amt_comMonthly">0</td><td style="font-size:11px;color:var(--ink-soft);" id="comMonthlyHint"></td></tr>
-        <tr class="item"><td>ค่าเชียร์</td><td class="num"><input type="text" inputmode="decimal" id="in_cheer"></td><td class="num">1</td><td class="num amt num-cell" id="amt_cheer">0</td><td></td></tr>
-        <tr class="item"><td>ค่า CI</td><td class="num"><input type="text" inputmode="decimal" id="in_ci"></td><td class="num">1</td><td class="num amt num-cell" id="amt_ci">0</td><td></td></tr>
-        <tr class="item"><td>อื่นๆ</td><td class="num"><input type="text" inputmode="decimal" id="in_other"></td><td class="num">1</td><td class="num amt num-cell" id="amt_other">0</td><td><input type="text" class="small-note-input" id="note_other" placeholder="เช่น ประกันสุขภาพ"></td></tr>
-      </tbody>
-      <tbody id="extraAdvanceBody"></tbody>
-      <tbody>
-        <tr><td colspan="5" style="border-bottom:none; padding-top:2px; padding-bottom:6px;"><button type="button" class="btn ghost small" id="addAdvanceItemBtn">+ เพิ่มรายการ</button></td></tr>
-        <tr><td colspan="5"><div class="note-static">**ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม.ต่อวัน</div></td></tr>
-      </tbody>
-
-      <tbody>
-        <tr><td colspan="5" class="section-label ded">รายการหัก</td></tr>
-        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded1" placeholder="ระบุรายการหัก" style="width:100%;"></td><td class="num"><input type="text" inputmode="decimal" id="in_ded1"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded1">0</td><td></td></tr>
-        <tr class="item ded"><td>ประกันสังคม</td><td class="num"><input type="text" inputmode="decimal" id="in_ss"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ss">0</td><td></td></tr>
-        <tr class="item ded"><td><input type="text" class="small-note-input" id="label_ded2" placeholder="รายการหักอื่น" style="width:100%;"></td><td class="num"><input type="text" inputmode="decimal" id="in_ded2"></td><td class="num">-1</td><td class="num amt num-cell" id="amt_ded2">0</td><td></td></tr>
-      </tbody>
-      <tbody id="extraDeductionBody"></tbody>
-      <tbody>
-        <tr><td colspan="5" style="border-bottom:none; padding-top:2px;"><button type="button" class="btn ghost small" id="addDeductionItemBtn">+ เพิ่มรายการ</button></td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <!-- TAB: TIERS -->
-  <section class="panel" data-panel="tiers" style="display:none;">
-    <h2>ตารางค่าคอม (ตั้งค่า)</h2>
-    <div class="warning">
-      <b>โปรดตรวจสอบ:</b> ไฟล์ Excel ต้นฉบับไม่มีค่า "เกณฑ์ยอด" (คอลัมน์ N และ P) กรอกไว้ — ระบบตั้งค่าเริ่มต้นให้แบบขั้นบันไดทีละ 1,000 บาท โดยอิงจากอัตราคอมที่มีอยู่ (O และ Q) กรุณาแก้ไขตัวเลขเกณฑ์ยอดในสองตารางด้านล่างให้ตรงกับที่ใช้งานจริงก่อนใช้คำนวณเงินเดือนจริง
-    </div>
-    <div class="hint">ยอดขายต่ำกว่าเกณฑ์แรกสุด (แถวบนสุด) จะได้คอมมิชชั่น = 0 เสมอ ตามสูตรเดิม (ยอด &lt; 18,000 → 0)</div>
-
-    <div class="tier-grid">
+  <!-- ---------- เภสัชกร: ขั้นคอมมิชชั่น ---------- -->
+  <section id="tab-tiers" class="card hide">
+    <h3>ตั้งค่าขั้นคอมมิชชั่น</h3>
+    <div class="row" style="align-items:flex-start">
       <div>
-        <h2 style="font-size:13.5px;">คอมรายวัน (จากยอดขายต่อวัน)</h2>
-        <table class="tier-table">
-          <thead><tr><th class="num">เกณฑ์ยอด (บาท)</th><th class="num">คอมรายวัน (บาท)</th></tr></thead>
-          <tbody id="dailyTierBody"></tbody>
-        </table>
-        <div class="tier-actions">
-          <button class="btn ghost small" id="addDailyTier">+ เพิ่มแถว</button>
-        </div>
+        <h4>คอมรายวัน (ตามยอดขาย/วัน)</h4>
+        <table><thead><tr><th>ยอดตั้งแต่</th><th>ได้รับ (บาท)</th><th></th></tr></thead>
+          <tbody id="tierDailyBody"></tbody></table>
+        <button class="ghost" style="margin-top:8px" onclick="addTier('daily')">+ เพิ่มขั้น</button>
       </div>
       <div>
-        <h2 style="font-size:13.5px;">คอมรายเดือน (จากยอดขายเฉลี่ย/วัน)</h2>
-        <table class="tier-table">
-          <thead><tr><th class="num">เกณฑ์ยอดเฉลี่ย (บาท)</th><th class="num">คอมรายเดือน (บาท)</th></tr></thead>
-          <tbody id="monthlyTierBody"></tbody>
-        </table>
-        <div class="tier-actions">
-          <button class="btn ghost small" id="addMonthlyTier">+ เพิ่มแถว</button>
-        </div>
+        <h4>คอมรายเดือน (ตามยอดรวมเดือน)</h4>
+        <table><thead><tr><th>ยอดตั้งแต่</th><th>ได้รับ (บาท)</th><th></th></tr></thead>
+          <tbody id="tierMonthBody"></tbody></table>
+        <button class="ghost" style="margin-top:8px" onclick="addTier('month')">+ เพิ่มขั้น</button>
       </div>
-    </div>
-    <div class="tier-actions" style="margin-top:14px;">
-      <button class="btn primary" id="saveTiers">บันทึกตารางค่าคอม</button>
-      <span class="hint-suggest" id="tierSaveStatus"></span>
     </div>
   </section>
 
-  <!-- TAB: LEAVE -->
-  <section class="panel" data-panel="leave" style="display:none;">
-    <h2>สรุปจำนวนวันหยุด</h2>
-    <table>
-      <thead><tr><th>ประเภท</th><th class="num" style="width:90px;">จำนวน</th><th class="num" style="width:90px;">ใช้</th><th class="num" style="width:90px;">เหลือ</th><th class="num" style="width:100px;">(ได้ทั้งปี)</th></tr></thead>
+  <!-- ---------- พนักงาน/ผู้ช่วย: คิดเงินเดือน (ตาม Excel) ---------- -->
+  <section id="tab-staff" class="card hide">
+    <h3>คิดเงินเดือน พนักงาน / ผู้ช่วย <span id="staffMonthLabel" style="color:#6b7280;font-weight:400"></span></h3>
+
+    <h4>รายได้ประจำ</h4>
+    <div class="wrap"><table>
+      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr><td class="l">เงินเดือน</td><td><input type="number" id="st_salary" value="10500"></td><td>-</td><td class="r" id="o_salary">0.00</td><td><input class="txt" id="st_salaryNote"></td></tr>
+        <tr><td class="l">ค่าตำแหน่ง</td><td><input type="number" id="st_position" value="500"></td><td>-</td><td class="r" id="o_position">0.00</td><td><input class="txt" id="st_positionNote" value="ผู้ช่วย/คลัง/โมบาย"></td></tr>
+        <tr><td class="l">ค่าประสบการณ์</td><td><input type="number" id="st_exp" value="0"></td><td>-</td><td class="r" id="o_exp">0.00</td><td><input class="txt" id="st_expNote"></td></tr>
+        <tr><td class="l">ตำแหน่งอื่นๆ</td><td><input type="number" id="st_posOther" value="0"></td><td>-</td><td class="r" id="o_posOther">0.00</td><td><input class="txt" id="st_posOtherNote"></td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>รายการเบิก</h4>
+    <div class="wrap"><table>
+      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr><td class="l">OT</td><td><input type="number" id="st_otHours" value="0" step="0.5"></td>
+            <td><input type="number" id="st_otRate" value="50" style="max-width:80px"></td>
+            <td class="r" id="o_ot">0.00</td><td><input class="txt" id="st_otNote" value="ชั่วโมง × อัตรา"></td></tr>
+        <tr><td class="l">com รายวัน</td><td><input type="number" id="st_comDaily" value="0"></td><td>-</td><td class="r" id="o_comDaily">0.00</td><td><input class="txt" id="st_comDailyNote"></td></tr>
+        <tr><td class="l">ค่าเชียร์</td><td><input type="number" id="st_cheer" value="0"></td><td>-</td><td class="r" id="o_cheer">0.00</td><td><input class="txt" id="st_cheerNote"></td></tr>
+        <tr><td class="l">ค่า CI</td><td><input type="number" id="st_ci" value="0"></td><td>-</td><td class="r" id="o_ci">0.00</td><td><input class="txt" id="st_ciNote"></td></tr>
+        <tr><td class="l">ค่าน้ำมัน</td><td><input type="number" id="st_fuel" value="0"></td><td>-</td><td class="r" id="o_fuel">0.00</td><td><input class="txt" id="st_fuelNote"></td></tr>
+        <tr><td class="l">อื่นๆ</td><td><input type="number" id="st_other" value="500"></td><td>-</td><td class="r" id="o_other">0.00</td><td><input class="txt" id="st_otherNote" value="ประกันสุขภาพ"></td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>รายการหัก</h4>
+    <div class="wrap"><table>
+      <thead><tr><th class="l">รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th class="l">หมายเหตุ</th></tr></thead>
+      <tbody>
+        <tr><td class="l">ค่าประกันสังคม</td><td><input type="number" id="st_sso" value="0"></td><td>-1</td><td class="r" id="o_sso">0.00</td><td><input class="txt" id="st_ssoNote"></td></tr>
+        <tr><td class="l">หักอื่นๆ</td><td><input type="number" id="st_deductOther" value="0"></td><td>-1</td><td class="r" id="o_deductOther">0.00</td><td><input class="txt" id="st_deductNote"></td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="sum">
+      <div><span>รวมรายได้ประจำ</span><b id="st_income">0.00</b></div>
+      <div><span>รวมรายการเบิก</span><b id="st_allow">0.00</b></div>
+      <div><span>รวมรายการหัก</span><b id="st_deduct">0.00</b></div>
+      <div class="net"><span>รวมสุทธิ</span><b id="st_net">0.00</b></div>
+    </div>
+  </section>
+
+  <!-- ---------- วันลา (ใช้ร่วมกัน) ---------- -->
+  <section id="tab-leave" class="card hide">
+    <h3>สรุปจำนวนวันหยุด / วันลา <span style="color:#6b7280;font-weight:400">(สิทธิ์ทั้งปี)</span></h3>
+    <div class="wrap"><table>
+      <thead><tr><th class="l">ประเภท</th><th>เงื่อนไข</th><th>สิทธิ์ทั้งปี</th><th>ใช้ไป</th><th>คงเหลือ</th></tr></thead>
       <tbody id="leaveBody"></tbody>
-    </table>
-    <div class="note-static" style="margin-top:10px;">*สะสมสามรายการแรกข้ามปีได้ไม่เกิน 7 วัน</div>
+    </table></div>
   </section>
-
 </main>
-
-<div class="footer-total">
-  <span class="label">รวมสุทธิ</span>
-  <span class="value num" id="netTotal">0</span>
-  <span class="label">บาท</span>
 </div>
-</div><!-- /appShell -->
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <script>
-// ---------- Supabase config ----------
-// แก้ 2 บรรทัดนี้เป็นค่าจากโปรเจกต์ Supabase ของคุณ (Settings → API)
-const SUPABASE_URL = 'https://qgdzhamtkrbqhrkkutdr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE';
+/* ============ 0) CONFIG ============ */
+const SUPABASE_URL  = 'https://qgdzhamtkrbqhrkkutdr.supabase.co';
+const SUPABASE_ANON_KEY = 'PUT_YOUR_ANON_KEY_HERE';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ---------- numeric input helper ----------
-// input ที่ใช้กรอกตัวเลขในแอปนี้เป็น type="text" (ไม่ใช่ type="number")
-// เพราะ input[type=number] ไม่รองรับ setSelectionRange() ทำให้ตอน re-render
-// แล้ว restore cursor ไม่ได้ผล เบราว์เซอร์จะวาง cursor กลับไปตำแหน่งเริ่มต้นเสมอ
-// ฟังก์ชันนี้ทำหน้าที่กรองให้พิมพ์ได้เฉพาะตัวเลข/จุดทศนิยม/เครื่องหมายลบนำหน้า
-function sanitizeNumericInput(el){
-  const before = el.value;
-  let cleaned = before.replace(/[^\d.\-]/g, '');
-  // อนุญาตเครื่องหมายลบได้แค่ตัวแรกตัวเดียว
-  cleaned = cleaned.replace(/(?!^)-/g, '');
-  // อนุญาตจุดทศนิยมได้แค่จุดเดียว
-  const firstDot = cleaned.indexOf('.');
-  if (firstDot !== -1){
-    cleaned = cleaned.slice(0, firstDot+1) + cleaned.slice(firstDot+1).replace(/\./g, '');
+const $  = id => document.getElementById(id);
+const num = id => { const v = parseFloat(($(id)?.value ?? '').toString().replace(/,/g,'')); return isFinite(v) ? v : 0; };
+const fmt = n => (isFinite(n)?n:0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const setTxt = (id,v) => { const el=$(id); if(el) el.textContent = v; };
+
+let CURRENT_ROLE = 'staff', CURRENT_USER = null;
+let curMonth = new Date().getMonth()+1, curYear = new Date().getFullYear()+543;
+
+/* ============ 1) AUTH ============ */
+let AUTH_MODE = 'login';
+const isSignup = () => AUTH_MODE === 'signup';
+
+function refreshAuthUI(){
+  const s = isSignup();
+  setTxt('authTitle', s ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ');
+  $('authSubmit').textContent = s ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
+  $('authToggle').textContent = s ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? สมัครสมาชิก';
+  ['wrapPass2','wrapRole','wrapName','wrapBranch'].forEach(w => $(w).classList.toggle('hide', !s));
+  $('authPass').setAttribute('autocomplete', s ? 'new-password' : 'current-password');
+  toggleSecret();
+  showMsg('');
+}
+function toggleSecret(){
+  $('wrapSecret').classList.toggle('hide', !(isSignup() && $('authRole').value === 'pharmacist'));
+}
+function showMsg(text, type='err'){
+  const m = $('authMsg'); m.textContent = text; m.className = 'auth-msg ' + (text ? type : '');
+}
+$('authToggle').onclick = () => { AUTH_MODE = isSignup() ? 'login' : 'signup'; refreshAuthUI(); };
+$('authRole').onchange = toggleSecret;
+$('authPass').addEventListener('keydown', e => { if(e.key==='Enter') $('authSubmit').click(); });
+
+$('authSubmit').onclick = async () => {
+  const btn = $('authSubmit'); btn.disabled = true;
+  try {
+    const email = $('authEmail').value.trim().toLowerCase();
+    const password = $('authPass').value;
+    if (!email || !password) return showMsg('กรุณากรอกอีเมลและรหัสผ่าน');
+    if (password.length < 6)  return showMsg('รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร');
+
+    if (isSignup()) {
+      if (password !== $('authPass2').value) return showMsg('รหัสผ่านยืนยันไม่ตรงกัน');
+      const role = $('authRole').value;
+      const code = $('authSecret').value.trim();
+      if (role === 'pharmacist' && !code) return showMsg('กรุณากรอกโค้ดลับสำหรับเภสัชกรสาขา');
+
+      btn.textContent = 'กำลังสมัคร...';
+      // ★ ตรวจโค้ดลับฝั่งเซิร์ฟเวอร์ — ไม่มีโค้ดลับอยู่ในหน้าเว็บเลย
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/signup-with-role`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email, password, role, code,
+          displayName: $('authName').value.trim(), branch: $('authBranch').value.trim() })
+      });
+      const out = await res.json().catch(()=>({}));
+      if (!res.ok) return showMsg(out.error || 'สมัครสมาชิกไม่สำเร็จ');
+
+      showMsg('สมัครสมาชิกสำเร็จ กำลังเข้าสู่ระบบ...', 'ok');
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) { AUTH_MODE='login'; refreshAuthUI(); return showMsg('สมัครสำเร็จแล้ว กรุณาเข้าสู่ระบบ','ok'); }
+      return bootApp();
+    }
+
+    btn.textContent = 'กำลังเข้าสู่ระบบ...';
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) return showMsg(/invalid/i.test(error.message) ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : error.message);
+    await bootApp();
+  } catch (e) {
+    showMsg(e.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+  } finally {
+    btn.disabled = false;
+    if (!$('appShell').classList.contains('hide')) return;
+    btn.textContent = isSignup() ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ';
   }
-  if (cleaned !== before){
-    const pos = el.selectionStart - (before.length - cleaned.length);
-    el.value = cleaned;
-    const newPos = Math.max(0, pos);
-    el.setSelectionRange(newPos, newPos);
-  }
-  return cleaned;
-}
-function numVal(str){
-  const n = parseFloat(str);
-  return isNaN(n) ? 0 : n;
+};
+
+$('btnLogout').onclick = async () => {
+  await sb.auth.signOut();
+  location.reload();
+};
+
+/* ============ 2) BOOT ============ */
+async function bootApp(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if (!session) { $('authOverlay').classList.remove('hide'); return; }
+  CURRENT_USER = session.user;
+  // ใช้ app_metadata เป็นหลัก (ผู้ใช้แก้ไม่ได้)
+  CURRENT_ROLE = session.user.app_metadata?.role || session.user.user_metadata?.role || 'staff';
+
+  $('authOverlay').classList.add('hide');
+  $('appShell').classList.remove('hide');
+  $('userEmail').textContent = session.user.email;
+
+  const isPharm = CURRENT_ROLE === 'pharmacist';
+  const badge = $('roleBadge');
+  badge.textContent = isPharm ? 'เภสัชกรสาขา' : 'พนักงาน / ผู้ช่วย';
+  badge.className = 'badge' + (isPharm ? '' : ' staff');
+
+  document.querySelectorAll('#tabNav button').forEach(b => {
+    const r = b.dataset.role;
+    b.classList.toggle('hide', !(r === 'both' || r === CURRENT_ROLE));
+  });
+
+  buildMonthPicker();
+  $('inpBranch').value = session.user.user_metadata?.branch || '';
+  renderLeaveTable({});
+  if (isPharm) { buildDailyTable(); renderTiers(); }
+  bindInputs();
+  await loadAll();
+  switchTab(isPharm ? 'daily' : 'staff');
 }
 
-// ---------- constants ----------
-const DAILY_TIER_DEFAULT_RATES = [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000];
-const MONTHLY_TIER_DEFAULT_RATES = [500,1000,1500,2000,2500,3000,3500,4000,4500,5000,6000,7000];
-function defaultTierList(rates){
-  return rates.map((rate,i)=>({ threshold: 18000 + i*1000, rate }));
-}
-const LEAVE_TYPES = [
-  { key:'holidayCarry', label:'วันหยุดสะสมนักขัต', note:'-' },
-  { key:'holiday', label:'วันหยุดนักขัต', note:'13' },
-  { key:'personal', label:'ลากิจ / ป่วยไม่มีใบ / พักผ่อน', note:'10' },
-  { key:'sickCert', label:'ลาป่วยมีใบ', note:'10' },
-];
+sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') location.reload(); });
+refreshAuthUI();
+bootApp();
 
-function fmt(n){
-  n = Number(n)||0;
-  return n.toLocaleString('th-TH', {maximumFractionDigits:2});
-}
-function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); } // m is 1-indexed
-
-function monthKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-function monthLabelText(d){
-  const th = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  return th[d.getMonth()] + ' ' + (d.getFullYear()+543);
-}
-
-// ---------- state ----------
-let currentDate = new Date();
-let tiers = { daily: defaultTierList(DAILY_TIER_DEFAULT_RATES), monthly: defaultTierList(MONTHLY_TIER_DEFAULT_RATES) };
-let month = null; // per-month payload
-let branch = '';
-let saveTimer = null;
-
-function defaultMonthData(days){
-  return {
-    daily: Array.from({length:days}, (_,i)=>({ day:i+1, sales:0, cases:0, ot:0 })),
-    salary: 24000, license: 12000, experience: 0, otherPosition: 0, otherPositionNote: 'ผจก/โมบาย',
-    otRate: 170, comMonthly: 0, cheer: 0, ci: 0, other: 500, otherNote: 'ประกันสุขภาพ',
-    ded1Label: 'รายการหัก', ded1: 0, ss: 0, ded2Label: '', ded2: 0,
-    extraBase: [], extraAdvance: [], extraDeduction: [],
-    leave: { holidayCarry:{total:0,used:0}, holiday:{total:0,used:0}, personal:{total:0,used:0}, sickCert:{total:0,used:0} }
+/* ============ 3) TABS & MONTH ============ */
+const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function buildMonthPicker(){
+  $('selMonth').innerHTML = TH_MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  $('selMonth').value = curMonth;
+  $('inpYear').value  = curYear;
+  $('selMonth').onchange = $('inpYear').onchange = async () => {
+    curMonth = +$('selMonth').value; curYear = +$('inpYear').value;
+    if (CURRENT_ROLE === 'pharmacist') buildDailyTable();
+    await loadAll();
   };
 }
+function daysInMonth(){ return new Date(curYear-543, curMonth, 0).getDate(); }
+function monthKey(prefix){ return `${prefix}:${curYear}-${String(curMonth).padStart(2,'0')}`; }
+function monthLabel(){ return `ประจำเดือน ${TH_MONTHS[curMonth-1]} ${String(curYear).slice(-2)}`; }
 
-// ---------- lookup ----------
-function lookupTier(value, list){
-  if (!list.length) return 0;
-  const sorted = [...list].sort((a,b)=>a.threshold-b.threshold);
-  if (value < sorted[0].threshold) return 0;
-  let rate = 0;
-  for (const t of sorted){ if (value >= t.threshold) rate = t.rate; else break; }
-  return rate;
+document.querySelectorAll('#tabNav button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+function switchTab(name){
+  document.querySelectorAll('#tabNav button').forEach(b => b.classList.toggle('active', b.dataset.tab===name));
+  ['daily','salary','tiers','staff','leave'].forEach(t => $('tab-'+t).classList.toggle('hide', t!==name));
 }
 
-// ---------- storage (Supabase) ----------
+/* ============ 4) SUPABASE KV ============ */
 async function kvGet(key){
-  const { data, error } = await sb.from('payroll_kv').select('value').eq('key', key).maybeSingle();
-  if (error) throw error;
-  return data ? data.value : null;
+  const { data, error } = await sb.from('payroll_kv').select('value')
+    .eq('user_id', CURRENT_USER.id).eq('key', key).maybeSingle();
+  if (error) { console.warn(error); return null; }
+  return data?.value ?? null;
 }
 async function kvSet(key, value){
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('ยังไม่ได้เข้าสู่ระบบ');
-  const { error } = await sb.from('payroll_kv').upsert(
-    { user_id: user.id, key, value },
-    { onConflict: 'user_id,key' }
-  );
-  if (error) throw error;
+  setTxt('saveStatus','กำลังบันทึก...');
+  const { error } = await sb.from('payroll_kv')
+    .upsert({ user_id: CURRENT_USER.id, key, value }, { onConflict: 'user_id,key' });
+  setTxt('saveStatus', error ? 'บันทึกไม่สำเร็จ' : 'บันทึกแล้ว ' + new Date().toLocaleTimeString('th-TH'));
+}
+function debounce(fn, ms=700){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+/* ============ 5) STAFF SALARY (ตามไฟล์ Excel) ============ */
+const STAFF_NUM = ['st_salary','st_position','st_exp','st_posOther','st_otHours','st_otRate',
+  'st_comDaily','st_cheer','st_ci','st_fuel','st_other','st_sso','st_deductOther'];
+const STAFF_TXT = ['st_salaryNote','st_positionNote','st_expNote','st_posOtherNote','st_otNote',
+  'st_comDailyNote','st_cheerNote','st_ciNote','st_fuelNote','st_otherNote','st_ssoNote','st_deductNote'];
+
+function calcStaff(){
+  const salary=num('st_salary'), position=num('st_position'), exp=num('st_exp'), posOther=num('st_posOther');
+  const income = salary + position + exp + posOther;
+
+  const ot = num('st_otHours') * num('st_otRate');           // OT = ชั่วโมง × ตัวคูณ (ค่าเริ่มต้น 50)
+  const comDaily=num('st_comDaily'), cheer=num('st_cheer'), ci=num('st_ci'), fuel=num('st_fuel'), other=num('st_other');
+  const allow = ot + comDaily + cheer + ci + fuel + other;
+
+  const sso=num('st_sso'), dOther=num('st_deductOther');
+  const deduct = sso + dOther;                                // ตัวคูณ -1 ในไฟล์ Excel
+  const net = income + allow - deduct;
+
+  const m = { o_salary:salary,o_position:position,o_exp:exp,o_posOther:posOther,o_ot:ot,
+    o_comDaily:comDaily,o_cheer:cheer,o_ci:ci,o_fuel:fuel,o_other:other,
+    o_sso:-sso, o_deductOther:-dOther };
+  Object.entries(m).forEach(([k,v]) => setTxt(k, fmt(v)));
+
+  setTxt('st_income',fmt(income)); setTxt('st_allow',fmt(allow));
+  setTxt('st_deduct',fmt(deduct)); setTxt('st_net',fmt(net));
+  setTxt('staffMonthLabel', monthLabel());
+  return { income, allow, deduct, net, ot };
 }
 
-async function loadTiers(){
-  try{
-    const val = await kvGet('tiers-config');
-    if (val && val.daily && val.monthly) tiers = val;
-  }catch(e){ /* no config yet, use defaults */ }
+function collectStaff(){
+  const o = { leave: collectLeave(), result: calcStaff() };
+  [...STAFF_NUM, ...STAFF_TXT].forEach(f => o[f] = $(f).value);
+  return o;
 }
-async function saveTiersToStorage(){
-  try{
-    await kvSet('tiers-config', tiers);
-    document.getElementById('tierSaveStatus').textContent = 'บันทึกแล้ว ✓';
-    setTimeout(()=>{ document.getElementById('tierSaveStatus').textContent=''; }, 2000);
-  }catch(e){ document.getElementById('tierSaveStatus').textContent = 'บันทึกไม่สำเร็จ'; }
+function applyStaff(v){
+  [...STAFF_NUM, ...STAFF_TXT].forEach(f => { if (v && v[f] !== undefined) $(f).value = v[f]; });
+  renderLeaveTable(v?.leave || {});
+  calcStaff();
 }
-async function loadBranch(){
-  try{
-    const val = await kvGet('branch-name');
-    if (val) branch = val;
-  }catch(e){}
-}
-function saveBranchDebounced(){
-  clearTimeout(saveBranchDebounced._t);
-  saveBranchDebounced._t = setTimeout(async ()=>{
-    try{ await kvSet('branch-name', branch); }catch(e){}
-  }, 500);
-}
+const saveStaff = debounce(() => kvSet(monthKey('staff-payroll'), collectStaff()));
 
-async function loadMonth(){
-  const key = 'payroll:' + monthKey(currentDate);
-  const days = daysInMonth(currentDate.getFullYear(), currentDate.getMonth()+1);
-  try{
-    const val = await kvGet(key);
-    if (val){
-      month = val;
-      if (!month.extraBase) month.extraBase = [];
-      if (!month.extraAdvance) month.extraAdvance = [];
-      if (!month.extraDeduction) month.extraDeduction = [];
-      // reconcile day count if switching to a month with different length
-      if (month.daily.length !== days){
-        const old = month.daily;
-        month.daily = Array.from({length:days}, (_,i)=> old[i] || { day:i+1, sales:0, cases:0, ot:0 });
-      }
-    } else {
-      month = defaultMonthData(days);
-    }
-  }catch(e){
-    month = defaultMonthData(days);
-  }
-}
-function saveMonthDebounced(){
-  setSaveStatus('กำลังบันทึก…');
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
-    const key = 'payroll:' + monthKey(currentDate);
-    try{
-      await kvSet(key, month);
-      setSaveStatus('บันทึกแล้ว');
-    }catch(e){
-      setSaveStatus('บันทึกไม่สำเร็จ');
-    }
-  }, 450);
-}
-function setSaveStatus(t){ document.getElementById('saveStatus').textContent = t; }
+/* ============ 6) PHARMACIST: DAILY + TIERS + SALARY ============ */
+let TIERS = { daily: [{from:0,amt:0}], month: [{from:0,amt:0}] };
 
-// ---------- rendering ----------
-function renderMonthHeader(){
-  document.getElementById('monthLabel').textContent = monthLabelText(currentDate);
-  document.getElementById('branchInput').value = branch;
+function buildDailyTable(){
+  const n = daysInMonth();
+  $('dailyBody').innerHTML = Array.from({length:n}, (_,i)=>`
+    <tr data-day="${i+1}">
+      <td>${i+1}</td>
+      <td><input type="number" class="d-sales"></td>
+      <td><input type="number" class="d-cases"></td>
+      <td><input type="time" class="d-in"></td>
+      <td><input type="time" class="d-out"></td>
+      <td class="r d-ot">0.00</td>
+      <td class="r d-com">0.00</td>
+    </tr>`).join('');
+  $('dailyBody').addEventListener('input', () => { calcDaily(); savePharm(); });
 }
-
-function renderDaily(){
-  const body = document.getElementById('dailyBody');
-  body.innerHTML = '';
-  let sumSales=0, sumCases=0, sumOT=0, sumCom=0;
-  month.daily.forEach((row, idx)=>{
-    const com = row.sales < (Math.min(...tiers.daily.map(t=>t.threshold), Infinity)) ? 0 : lookupTier(row.sales, tiers.daily);
-    sumSales += Number(row.sales)||0;
-    sumCases += Number(row.cases)||0;
-    sumOT += Number(row.ot)||0;
-    sumCom += com;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="day-cell">${row.day}</td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="sales" value="${row.sales||0}"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="cases" value="${row.cases||0}"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-idx="${idx}" data-field="ot" value="${row.ot||0}"></td>
-      <td class="num"><span class="readonly">${fmt(com)}</span></td>
-    `;
-    body.appendChild(tr);
+function toMin(t){ if(!t) return null; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function computeOtHours(first,last){
+  const a=toMin(first), b=toMin(last);
+  if (a==null||b==null||b<=a) return 0;
+  return Math.max(0, (b-a)/60 - 1 - 8);   // ลบพัก 1 ชม. และกะปกติ 8 ชม.
+}
+function lookupTier(value, list){
+  let amt = 0;
+  [...list].sort((x,y)=>x.from-y.from).forEach(t => { if (value >= t.from) amt = t.amt; });
+  return amt;
+}
+function calcDaily(){
+  let sales=0, cases=0, ot=0, com=0, activeDays=0;
+  document.querySelectorAll('#dailyBody tr').forEach(tr => {
+    const s = parseFloat(tr.querySelector('.d-sales').value)||0;
+    const c = parseFloat(tr.querySelector('.d-cases').value)||0;
+    const h = computeOtHours(tr.querySelector('.d-in').value, tr.querySelector('.d-out').value);
+    const dc = s > 0 ? lookupTier(s, TIERS.daily) : 0;
+    tr.querySelector('.d-ot').textContent  = fmt(h);
+    tr.querySelector('.d-com').textContent = fmt(dc);
+    sales+=s; cases+=c; ot+=h; com+=dc; if (s>0) activeDays++;
   });
-  document.getElementById('sumSales').textContent = fmt(sumSales);
-  document.getElementById('sumCases').textContent = fmt(sumCases);
-  document.getElementById('sumOT').textContent = fmt(sumOT);
-  document.getElementById('sumCom').textContent = fmt(sumCom);
-  document.getElementById('infoTotalSales').textContent = fmt(sumSales);
-  document.getElementById('infoTotalDailyCom').textContent = fmt(sumCom);
-
-  const activeDays = month.daily.filter(r=> (Number(r.sales)||0) > 0).length;
-  const avg = activeDays ? sumSales/activeDays : 0;
-  document.getElementById('infoAvgSales').textContent = fmt(Math.round(avg));
-
-  return { sumSales, sumCases, sumOT, sumCom, avg };
+  setTxt('sumSales',fmt(sales)); setTxt('sumCases',cases);
+  setTxt('sumOt',fmt(ot)); setTxt('sumComDaily',fmt(com));
+  setTxt('avgSales', fmt(activeDays ? sales/activeDays : 0));
+  $('ph_otAmt').value    = (ot * num('ph_otRate')).toFixed(2);
+  $('ph_comDaily').value = com.toFixed(2);
+  $('ph_comMonth').value = lookupTier(sales, TIERS.month).toFixed(2);
+  calcPharmSalary();
+  return { sales, cases, ot, com };
 }
-
-function renderSalary(totals){
-  document.getElementById('in_salary').value = month.salary;
-  document.getElementById('in_license').value = month.license;
-  document.getElementById('in_experience').value = month.experience;
-  document.getElementById('in_otherPosition').value = month.otherPosition;
-  document.getElementById('note_otherPosition').value = month.otherPositionNote;
-  document.getElementById('in_otHours').textContent = fmt(totals.sumOT);
-  document.getElementById('in_otRate').value = month.otRate;
-  document.getElementById('in_comDaily').textContent = fmt(totals.sumCom);
-  document.getElementById('in_comMonthly').value = month.comMonthly;
-  document.getElementById('in_cheer').value = month.cheer;
-  document.getElementById('in_ci').value = month.ci;
-  document.getElementById('in_other').value = month.other;
-  document.getElementById('note_other').value = month.otherNote;
-  document.getElementById('label_ded1').value = month.ded1Label;
-  document.getElementById('in_ded1').value = month.ded1;
-  document.getElementById('in_ss').value = month.ss;
-  document.getElementById('label_ded2').value = month.ded2Label;
-  document.getElementById('in_ded2').value = month.ded2;
-
-  const otAmt = totals.sumOT * (Number(month.otRate)||0);
-  const suggestedMonthly = lookupTier(Math.round(totals.avg), tiers.monthly);
-  document.getElementById('comMonthlyHint').innerHTML =
-    `ยอดเฉลี่ย ${fmt(Math.round(totals.avg))} → แนะนำ <button onclick="applySuggestedMonthly(${suggestedMonthly})" type="button">${fmt(suggestedMonthly)} บาท</button>`;
-
-  const amounts = {
-    salary: Number(month.salary)||0,
-    license: Number(month.license)||0,
-    experience: Number(month.experience)||0,
-    otherPosition: Number(month.otherPosition)||0,
-    ot: otAmt,
-    comDaily: totals.sumCom,
-    comMonthly: Number(month.comMonthly)||0,
-    cheer: Number(month.cheer)||0,
-    ci: Number(month.ci)||0,
-    other: Number(month.other)||0,
-    ded1: -(Number(month.ded1)||0),
-    ss: -(Number(month.ss)||0),
-    ded2: -(Number(month.ded2)||0),
-  };
-  for (const k in amounts){
-    const el = document.getElementById('amt_'+k);
-    if (el) el.textContent = fmt(amounts[k]);
-  }
-
-  renderExtraSection('extraBaseBody', 'extraBase', 1, '');
-  renderExtraSection('extraAdvanceBody', 'extraAdvance', 1, '');
-  renderExtraSection('extraDeductionBody', 'extraDeduction', -1, 'ded');
-
-  const extraSum =
-    (month.extraBase||[]).reduce((s,i)=> s + (Number(i.amount)||0), 0) +
-    (month.extraAdvance||[]).reduce((s,i)=> s + (Number(i.amount)||0), 0) +
-    (month.extraDeduction||[]).reduce((s,i)=> s - (Number(i.amount)||0), 0);
-
-  const net = Object.values(amounts).reduce((a,b)=>a+b,0) + extraSum;
-  document.getElementById('netTotal').textContent = fmt(net);
-  return net;
+function calcPharmSalary(){
+  const income = num('ph_salary')+num('ph_position')+num('ph_exp')+num('ph_license');
+  const allow  = num('ph_otAmt')+num('ph_comDaily')+num('ph_comMonth')
+               + num('ph_cheer')+num('ph_ci')+num('ph_fuel')+num('ph_other');
+  const deduct = num('ph_sso')+num('ph_deductOther');
+  const net = income + allow - deduct;
+  setTxt('ph_income',fmt(income)); setTxt('ph_allow',fmt(allow));
+  setTxt('ph_deduct',fmt(deduct)); setTxt('ph_net',fmt(net));
+  return { income, allow, deduct, net };
 }
-
-function escapeAttr(s){
-  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
-
-function renderExtraSection(bodyId, section, sign, extraClass){
-  const body = document.getElementById(bodyId);
-  body.innerHTML = '';
-  (month[section]||[]).forEach(item=>{
-    const amt = sign * (Number(item.amount)||0);
-    const tr = document.createElement('tr');
-    tr.className = 'item' + (extraClass ? ' '+extraClass : '');
-    tr.innerHTML = `
-      <td><input type="text" data-extra-sec="${section}" data-id="${item.id}" data-f="label" class="small-note-input" style="width:100%;" value="${escapeAttr(item.label)}" placeholder="ระบุรายการ"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-extra-sec="${section}" data-id="${item.id}" data-f="amount" value="${item.amount||0}"></td>
-      <td class="num">${sign > 0 ? '1' : '-1'}</td>
-      <td class="num amt num-cell">${fmt(amt)}</td>
-      <td><button type="button" class="btn ghost small" data-remove-sec="${section}" data-remove-id="${item.id}">ลบ</button></td>
-    `;
-    body.appendChild(tr);
-  });
-}
-
-function addExtraItem(section){
-  if (!month[section]) month[section] = [];
-  month[section].push({ id: 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), label:'', amount:0 });
-  const totals = renderDaily();
-  renderSalary(totals);
-  saveMonthDebounced();
-}
-function removeExtraItem(section, id){
-  month[section] = (month[section]||[]).filter(i => i.id !== id);
-  const totals = renderDaily();
-  renderSalary(totals);
-  saveMonthDebounced();
-}
-
-document.getElementById('addBaseItemBtn').addEventListener('click', ()=> addExtraItem('extraBase'));
-document.getElementById('addAdvanceItemBtn').addEventListener('click', ()=> addExtraItem('extraAdvance'));
-document.getElementById('addDeductionItemBtn').addEventListener('click', ()=> addExtraItem('extraDeduction'));
-
-document.querySelector('[data-panel="salary"]').addEventListener('click', (e)=>{
-  const btn = e.target.closest('[data-remove-sec]');
-  if (!btn) return;
-  removeExtraItem(btn.dataset.removeSec, btn.dataset.removeId);
-});
-
-document.querySelector('[data-panel="salary"]').addEventListener('input', (e)=>{
-  const t = e.target;
-  if (t.dataset.extraSec){
-    if (t.dataset.f === 'amount') sanitizeNumericInput(t);
-    const list = month[t.dataset.extraSec] || [];
-    const item = list.find(i => i.id === t.dataset.id);
-    if (item){
-      item[t.dataset.f] = t.dataset.f === 'label' ? t.value : numVal(t.value);
-      const totals = renderDaily();
-      renderSalary(totals);
-      const again = document.querySelector(`[data-extra-sec="${t.dataset.extraSec}"][data-id="${t.dataset.id}"][data-f="${t.dataset.f}"]`);
-      if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
-      saveMonthDebounced();
-    }
-    return;
-  }
-});
-
-
 function renderTiers(){
-  const dBody = document.getElementById('dailyTierBody');
-  dBody.innerHTML = '';
-  tiers.daily.forEach((t, i)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="daily" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="daily" data-i="${i}" data-f="rate" value="${t.rate}"></td>
-    `;
-    dBody.appendChild(tr);
-  });
-  const mBody = document.getElementById('monthlyTierBody');
-  mBody.innerHTML = '';
-  tiers.monthly.forEach((t, i)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="monthly" data-i="${i}" data-f="threshold" value="${t.threshold}"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-tier="monthly" data-i="${i}" data-f="rate" value="${t.rate}"></td>
-    `;
-    mBody.appendChild(tr);
+  ['daily','month'].forEach(kind => {
+    $(kind==='daily'?'tierDailyBody':'tierMonthBody').innerHTML = TIERS[kind].map((t,i)=>`
+      <tr><td><input type="number" value="${t.from}" onchange="updTier('${kind}',${i},'from',this.value)"></td>
+          <td><input type="number" value="${t.amt}"  onchange="updTier('${kind}',${i},'amt',this.value)"></td>
+          <td><button class="ghost" onclick="delTier('${kind}',${i})">ลบ</button></td></tr>`).join('');
   });
 }
+function addTier(k){ TIERS[k].push({from:0,amt:0}); renderTiers(); saveTiers(); }
+function delTier(k,i){ TIERS[k].splice(i,1); renderTiers(); calcDaily(); saveTiers(); }
+function updTier(k,i,f,v){ TIERS[k][i][f] = parseFloat(v)||0; calcDaily(); saveTiers(); }
+const saveTiers = debounce(() => kvSet('tiers', TIERS));
 
-function renderLeave(){
-  const body = document.getElementById('leaveBody');
-  body.innerHTML = '';
-  LEAVE_TYPES.forEach(lt=>{
-    const rec = month.leave[lt.key];
-    const remain = (Number(rec.total)||0) - (Number(rec.used)||0);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${lt.label}</td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-leave="${lt.key}" data-f="total" value="${rec.total||0}"></td>
-      <td class="num"><input type="text" inputmode="decimal" class="num-input" data-leave="${lt.key}" data-f="used" value="${rec.used||0}"></td>
-      <td class="num"><span class="readonly">${fmt(remain)}</span></td>
-      <td class="num"><span class="readonly">${lt.note}</span></td>
-    `;
-    body.appendChild(tr);
+function collectPharm(){
+  const days = [...document.querySelectorAll('#dailyBody tr')].map(tr => ({
+    day: +tr.dataset.day,
+    sales: tr.querySelector('.d-sales').value,
+    cases: tr.querySelector('.d-cases').value,
+    in:    tr.querySelector('.d-in').value,
+    out:   tr.querySelector('.d-out').value,
+  }));
+  const o = { days, leave: collectLeave() };
+  PHARM_FIELDS.forEach(f => o[f] = $(f).value);
+  o.result = calcPharmSalary();
+  return o;
+}
+const PHARM_FIELDS = ['ph_salary','ph_position','ph_exp','ph_license','ph_otRate',
+  'ph_cheer','ph_ci','ph_fuel','ph_other','ph_sso','ph_deductOther','ph_deductNote'];
+function applyPharm(v){
+  PHARM_FIELDS.forEach(f => { if (v && v[f] !== undefined) $(f).value = v[f]; });
+  (v?.days || []).forEach(d => {
+    const tr = document.querySelector(`#dailyBody tr[data-day="${d.day}"]`);
+    if (!tr) return;
+    tr.querySelector('.d-sales').value = d.sales ?? '';
+    tr.querySelector('.d-cases').value = d.cases ?? '';
+    tr.querySelector('.d-in').value    = d.in ?? '';
+    tr.querySelector('.d-out').value   = d.out ?? '';
   });
+  renderLeaveTable(v?.leave || {});
+  calcDaily();
+}
+const savePharm = debounce(() => kvSet(monthKey('pharm-payroll'), collectPharm()));
+
+/* ============ 7) LEAVE (ตามไฟล์ Excel) ============ */
+const LEAVE_RULES = [
+  ['วันหยุดสะสม','ไม่เกิน 6 วัน','-'],
+  ['ลาป่วย (มีใบ)','ผ่านทดลองงาน',10],
+  ['ลาป่วย (ไม่มีใบ)','เข้าปีที่ 2',5],
+  ['ลากิจ','เข้าปีที่ 3',5],
+  ['ลาสมรส','เข้าปีที่ 3',3],
+  ['ลาพักผ่อน','เข้าปีที่ 4',3],
+  ['ลาคลอด','เข้าปีที่ 4','1 เดือน'],
+  ['ลาอุปสมบท','เข้าปีที่ 4',7],
+  ['ลาจัดการงานศพ','ผ่านทดลองงาน',3],
+];
+function renderLeaveTable(used={}){
+  $('leaveBody').innerHTML = LEAVE_RULES.map(([name,cond,quota])=>{
+    const u = used[name] || 0;
+    const left = typeof quota === 'number' ? quota - u : '-';
+    return `<tr><td class="l">${name}</td><td>${cond}</td><td>${quota}</td>
+      <td><input type="number" class="leaveUsed" data-name="${name}" value="${u}" min="0" style="max-width:80px"></td>
+      <td class="${typeof left==='number'&&left<0?'':''}">${left}</td></tr>`;
+  }).join('');
+  document.querySelectorAll('.leaveUsed').forEach(el => el.oninput = onLeaveChange);
+}
+function collectLeave(){
+  const used = {};
+  document.querySelectorAll('.leaveUsed').forEach(el => used[el.dataset.name] = parseFloat(el.value)||0);
+  return used;
+}
+function onLeaveChange(){
+  const used = collectLeave();
+  renderLeaveTable(used);
+  CURRENT_ROLE === 'pharmacist' ? savePharm() : saveStaff();
 }
 
-function renderAll(){
-  renderMonthHeader();
-  const totals = renderDaily();
-  renderSalary(totals);
-  renderTiers();
-  renderLeave();
+/* ============ 8) BIND & LOAD ============ */
+function bindInputs(){
+  [...STAFF_NUM, ...STAFF_TXT].forEach(f =>
+    $(f)?.addEventListener('input', () => { calcStaff(); saveStaff(); }));
+  PHARM_FIELDS.forEach(f =>
+    $(f)?.addEventListener('input', () => { calcDaily(); savePharm(); }));
+  $('inpBranch').addEventListener('input', debounce(() => kvSet('branch', $('inpBranch').value)));
+}
+async function loadAll(){
+  if (CURRENT_ROLE === 'pharmacist') {
+    const t = await kvGet('tiers'); if (t) { TIERS = t; renderTiers(); }
+    applyPharm(await kvGet(monthKey('pharm-payroll')));
+  } else {
+    applyStaff(await kvGet(monthKey('staff-payroll')));
+  }
+  const b = await kvGet('branch'); if (b) $('inpBranch').value = b;
 }
 
-window.applySuggestedMonthly = function(v){
-  month.comMonthly = v;
-  const totals = renderDaily();
-  renderSalary(totals);
-  saveMonthDebounced();
+/* ============ 9) EXPORT ============ */
+$('btnExportXlsx').onclick = () => {
+  const wb = XLSX.utils.book_new();
+  if (CURRENT_ROLE === 'staff') {
+    const r = calcStaff();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      [`รายการคิดเงินเดือน ${monthLabel()}`],
+      ['รายการ','จำนวน','ตัวคูณ','จำนวน(บาท)','หมายเหตุ'],
+      ['เงินเดือน',num('st_salary'),'',num('st_salary'),$('st_salaryNote').value],
+      ['ตำแหน่ง',num('st_position'),'',num('st_position'),$('st_positionNote').value],
+      ['ประสบการณ์',num('st_exp'),'',num('st_exp'),''],
+      ['ตำแหน่งอื่นๆ',num('st_posOther'),'',num('st_posOther'),''],
+      ['รายการเบิก'],
+      ['OT',num('st_otHours'),num('st_otRate'),r.ot,''],
+      ['com รายวัน',num('st_comDaily'),'',num('st_comDaily'),''],
+      ['ค่าเชียร์',num('st_cheer'),'',num('st_cheer'),''],
+      ['ค่า CI',num('st_ci'),'',num('st_ci'),''],
+      ['ค่าน้ำมัน',num('st_fuel'),'',num('st_fuel'),''],
+      ['อื่นๆ',num('st_other'),'',num('st_other'),$('st_otherNote').value],
+      ['รายการหัก'],
+      ['ค่าประกันสังคม',num('st_sso'),-1,-num('st_sso'),''],
+      ['หักอื่นๆ',num('st_deductOther'),-1,-num('st_deductOther'),$('st_deductNote').value],
+      [],['รวมสุทธิ','','',r.net,''],
+    ]), 'เงินเดือน');
+  } else {
+    const rows = [['วันที่','ยอด','เคส','OT','คอมรายวัน']];
+    document.querySelectorAll('#dailyBody tr').forEach(tr => rows.push([
+      tr.dataset.day, tr.querySelector('.d-sales').value, tr.querySelector('.d-cases').value,
+      tr.querySelector('.d-ot').textContent, tr.querySelector('.d-com').textContent]));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'รายวัน');
+  }
+  const leave = [['ประเภท','เงื่อนไข','สิทธิ์','ใช้','เหลือ']];
+  const used = collectLeave();
+  LEAVE_RULES.forEach(([n,c,q]) => leave.push([n,c,q,used[n]||0, typeof q==='number'? q-(used[n]||0):'-']));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(leave), 'วันลา');
+  XLSX.writeFile(wb, `payroll-${curYear}-${String(curMonth).padStart(2,'0')}.xlsx`);
 };
 
-// ---------- events ----------
-document.querySelectorAll('nav.tabs button').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('[data-panel]').forEach(p=> p.style.display = 'none');
-    document.querySelector(`[data-panel="${btn.dataset.tab}"]`).style.display = '';
-  });
-});
-
-document.getElementById('prevMonth').addEventListener('click', async ()=>{
-  currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth()-1, 1);
-  await loadMonth();
-  renderAll();
-});
-document.getElementById('nextMonth').addEventListener('click', async ()=>{
-  currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth()+1, 1);
-  await loadMonth();
-  renderAll();
-});
-document.getElementById('branchInput').addEventListener('input', (e)=>{
-  branch = e.target.value;
-  saveBranchDebounced();
-});
-
-document.getElementById('dailyBody').addEventListener('input', (e)=>{
-  const t = e.target;
-  if (t.dataset.idx === undefined) return;
-  sanitizeNumericInput(t);
-  const idx = Number(t.dataset.idx), field = t.dataset.field;
-  month.daily[idx][field] = numVal(t.value);
-  const totals = renderDaily();
-  renderSalary(totals);
-  // restore focus + cursor position after re-render (works because these are type="text")
-  const again = document.querySelector(`[data-idx="${idx}"][data-field="${field}"]`);
-  if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
-  saveMonthDebounced();
-});
-
-const salaryFieldMap = {
-  in_salary:'salary', in_license:'license', in_experience:'experience', in_otherPosition:'otherPosition',
-  note_otherPosition:'otherPositionNote', in_otRate:'otRate', in_comMonthly:'comMonthly',
-  in_cheer:'cheer', in_ci:'ci', in_other:'other', note_other:'otherNote',
-  label_ded1:'ded1Label', in_ded1:'ded1', in_ss:'ss', label_ded2:'ded2Label', in_ded2:'ded2'
+$('btnExportPdf').onclick = async () => {
+  const el = $(CURRENT_ROLE === 'staff' ? 'tab-staff' : 'tab-salary');
+  const wasHidden = el.classList.contains('hide');
+  el.classList.remove('hide');
+  const canvas = await html2canvas(el, { scale:2, backgroundColor:'#fff' });
+  if (wasHidden) el.classList.add('hide');
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p','mm','a4');
+  const w = 190, h = canvas.height * w / canvas.width;
+  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, w, Math.min(h, 277));
+  pdf.save(`payroll-${curYear}-${String(curMonth).padStart(2,'0')}.pdf`);
 };
-const salaryNumericIds = new Set(['in_salary','in_license','in_experience','in_otherPosition','in_otRate','in_comMonthly','in_cheer','in_ci','in_other','in_ded1','in_ss','in_ded2']);
-document.querySelector('[data-panel="salary"]').addEventListener('input', (e)=>{
-  const id = e.target.id;
-  if (!(id in salaryFieldMap)) return;
-  const key = salaryFieldMap[id];
-  const isText = e.target.type === 'text' && !salaryNumericIds.has(id);
-  if (salaryNumericIds.has(id)) sanitizeNumericInput(e.target);
-  month[key] = isText ? e.target.value : numVal(e.target.value);
-  const totals = renderDaily();
-  renderSalary(totals);
-  const again = document.getElementById(id);
-  again.focus();
-  if (salaryNumericIds.has(id)){ const v = again.value; again.setSelectionRange(v.length, v.length); }
-  saveMonthDebounced();
-});
-
-document.getElementById('leaveBody').addEventListener('input', (e)=>{
-  const t = e.target;
-  if (!t.dataset.leave) return;
-  sanitizeNumericInput(t);
-  month.leave[t.dataset.leave][t.dataset.f] = numVal(t.value);
-  renderLeave();
-  const again = document.querySelector(`[data-leave="${t.dataset.leave}"][data-f="${t.dataset.f}"]`);
-  if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
-  saveMonthDebounced();
-});
-
-function tierInputHandler(e){
-  const t = e.target;
-  if (!t.dataset.tier) return;
-  sanitizeNumericInput(t);
-  const list = tiers[t.dataset.tier];
-  list[Number(t.dataset.i)][t.dataset.f] = numVal(t.value);
-  const totals = renderDaily();
-  renderSalary(totals);
-  const again = document.querySelector(`[data-tier="${t.dataset.tier}"][data-i="${t.dataset.i}"][data-f="${t.dataset.f}"]`);
-  if (again){ again.focus(); const v=again.value; again.setSelectionRange(v.length,v.length); }
-  saveMonthDebounced();
-}
-document.getElementById('dailyTierBody').addEventListener('input', tierInputHandler);
-document.getElementById('monthlyTierBody').addEventListener('input', tierInputHandler);
-
-document.getElementById('addDailyTier').addEventListener('click', ()=>{
-  const last = tiers.daily[tiers.daily.length-1];
-  tiers.daily.push({ threshold: (last?last.threshold:18000)+1000, rate: (last?last.rate:0)+50 });
-  renderTiers();
-});
-document.getElementById('addMonthlyTier').addEventListener('click', ()=>{
-  const last = tiers.monthly[tiers.monthly.length-1];
-  tiers.monthly.push({ threshold: (last?last.threshold:18000)+1000, rate: (last?last.rate:0)+500 });
-  renderTiers();
-});
-document.getElementById('saveTiers').addEventListener('click', saveTiersToStorage);
-function fileToBase64(file){
-  return new Promise((resolve, reject)=>{
-    const r = new FileReader();
-    r.onload = () => resolve(r.result.split(',')[1]);
-    r.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
-    r.readAsDataURL(file);
-  });
-}
-
-function timeStrToMinutes(t){
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
-  if (!m) return null;
-  return parseInt(m[1],10)*60 + parseInt(m[2],10);
-}
-
-// OT = (last - first) - 1hr lunch - 8hr standard workday, clamped at 0
-function computeOtHours(first, last){
-  const a = timeStrToMinutes(first), b = timeStrToMinutes(last);
-  if (a === null || b === null) return 0;
-  const diffMin = b - a;
-  const otMin = diffMin - 60 - 480;
-  return Math.max(0, Math.round((otMin/60) * 100) / 100);
-}
-
-document.getElementById('otImageInput').addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  const wrap = document.getElementById('otImagePreviewWrap');
-  const img = document.getElementById('otImagePreview');
-  if (file && file.type.startsWith('image/')){
-    img.src = URL.createObjectURL(file);
-    wrap.style.display = '';
-  } else {
-    wrap.style.display = 'none';
-  }
-});
-
-document.getElementById('processImageBtn').addEventListener('click', async ()=>{
-  const fileInput = document.getElementById('otImageInput');
-  const statusEl = document.getElementById('otImageStatus');
-  const file = fileInput.files[0];
-  if (!file){ statusEl.textContent = 'กรุณาเลือกรูปภาพก่อน'; return; }
-
-  statusEl.textContent = 'กำลังอ่านตาราง…';
-  try{
-    const base64 = await fileToBase64(file);
-    const mimeType = file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-
-    const prompt = `นี่คือรูปภาพ/เอกสารตารางลงเวลาเข้า-ออกงาน (Time Card) ของพนักงานหนึ่งเดือน
-สำหรับแต่ละวันที่ (01-31) ที่ปรากฏในตาราง ให้หา:
-- "first": เวลาตอกบัตรช่องแรกสุดของวันนั้น (ซ้ายสุดที่มีข้อมูล ในคอลัมน์ Before Noon In ปกติ)
-- "last": เวลาตอกบัตรช่องสุดท้ายของวันนั้น (ขวาสุดที่มีข้อมูล อาจอยู่ในคอลัมน์ Overtime Out หรือ After Noon Out)
-ถ้าวันนั้นไม่มีข้อมูลตอกบัตรเลย (แถวว่าง) ให้ข้ามวันนั้นไปไม่ต้องใส่ในผลลัพธ์
-ตอบกลับเป็น JSON เท่านั้น รูปแบบนี้เป๊ะๆ:
-{"days":[{"day":1,"first":"08:42","last":"20:02"},{"day":3,"first":"08:48","last":"20:05"}]}
-เวลาให้อยู่ในรูปแบบ HH:MM 24 ชั่วโมงเสมอ`;
-
-    const { data, error } = await sb.functions.invoke('read-attendance', {
-      body: { mimeType, data: base64, prompt }
-    });
-    if (error){
-      // error.message ของ supabase-js มักเป็นข้อความ generic เช่น
-      // "Edge Function returned a non-2xx status code" — ต้องอ่าน body จริงจาก error.context
-      let detail = error.message || 'เรียก Edge Function ไม่สำเร็จ';
-      if (error.context && typeof error.context.json === 'function'){
-        try{
-          const body = await error.context.json();
-          detail = body.error || JSON.stringify(body);
-        }catch(_){ /* body อ่านไม่ได้ ใช้ detail เดิม */ }
-      }
-      throw new Error(detail);
-    }
-    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gemini API error'));
-
-    const textOut = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textOut) throw new Error('ไม่ได้รับข้อความตอบกลับ');
-    const cleaned = textOut.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    if (!parsed.days || !Array.isArray(parsed.days)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
-
-    const lines = parsed.days
-      .filter(d => d.day && d.first && d.last)
-      .sort((a,b)=>a.day-b.day)
-      .map(d => `${d.day},${computeOtHours(d.first, d.last)}`);
-
-    if (!lines.length) throw new Error('อ่านข้อมูลจากภาพไม่ได้ ลองรูปที่ชัดขึ้น');
-
-    document.getElementById('otImportText').value = lines.join('\n');
-    statusEl.textContent = `อ่านได้ ${lines.length} วัน — ตรวจสอบด้านล่างแล้วกด "นำเข้า OT"`;
-  }catch(err){
-    statusEl.textContent = 'อ่านรูปภาพไม่สำเร็จ: ' + err.message;
-  }
-});
-
-document.getElementById('importOtBtn').addEventListener('click', ()=>{
-  const raw = document.getElementById('otImportText').value;
-  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
-  let applied = 0, skipped = 0;
-  lines.forEach(line=>{
-    const parts = line.split(',').map(s=>s.trim());
-    if (parts.length < 2) { skipped++; return; }
-    const day = parseInt(parts[0], 10);
-    const hours = parseFloat(parts[1]);
-    if (isNaN(day) || isNaN(hours) || day < 1 || day > month.daily.length) { skipped++; return; }
-    month.daily[day-1].ot = hours;
-    applied++;
-  });
-  const totals = renderDaily();
-  renderSalary(totals);
-  saveMonthDebounced();
-  const statusEl = document.getElementById('otImportStatus');
-  statusEl.textContent = `นำเข้าแล้ว ${applied} วัน${skipped ? ` (ข้าม ${skipped} บรรทัดที่อ่านไม่ได้)` : ''}`;
-  setTimeout(()=>{ statusEl.textContent=''; }, 4000);
-});
-
-// ---------- auth (Supabase Auth) ----------
-let authMode = 'login'; // 'login' | 'signup' | 'change'
-
-function clearAuthInputs(){
-  document.getElementById('authPassInput').value = '';
-  document.getElementById('authPassConfirm').value = '';
-  document.getElementById('authError').textContent = '';
-  document.getElementById('authError').classList.remove('ok');
-}
-function showLoginScreen(){
-  authMode = 'login';
-  clearAuthInputs();
-  document.getElementById('authTitle').textContent = 'เข้าสู่ระบบ';
-  document.getElementById('authSubtitle').textContent = 'กรอกอีเมลและรหัสผ่านเพื่อเข้าใช้งาน';
-  document.getElementById('authEmailInput').style.display = '';
-  document.getElementById('authEmailInput').value = '';
-  document.getElementById('authPassInput').placeholder = 'รหัสผ่าน';
-  document.getElementById('authPassConfirm').style.display = 'none';
-  document.getElementById('authSubmitBtn').textContent = 'เข้าสู่ระบบ';
-  document.getElementById('authSubmitBtn').onclick = handleLogin;
-  document.getElementById('authToggleModeBtn').style.display = '';
-  document.getElementById('authToggleModeBtn').textContent = 'ยังไม่มีบัญชี? สมัครสมาชิก';
-  document.getElementById('authOverlay').style.display = 'flex';
-}
-function showSignupScreen(){
-  authMode = 'signup';
-  clearAuthInputs();
-  document.getElementById('authTitle').textContent = 'สมัครสมาชิก';
-  document.getElementById('authSubtitle').textContent = 'ตั้งอีเมลและรหัสผ่านสำหรับเข้าใช้งานแอปนี้';
-  document.getElementById('authEmailInput').style.display = '';
-  document.getElementById('authPassInput').placeholder = 'ตั้งรหัสผ่าน';
-  document.getElementById('authPassConfirm').style.display = '';
-  document.getElementById('authSubmitBtn').textContent = 'สมัครสมาชิก';
-  document.getElementById('authSubmitBtn').onclick = handleSignup;
-  document.getElementById('authToggleModeBtn').style.display = '';
-  document.getElementById('authToggleModeBtn').textContent = 'มีบัญชีแล้ว? เข้าสู่ระบบ';
-  document.getElementById('authOverlay').style.display = 'flex';
-}
-function showChangeScreen(){
-  authMode = 'change';
-  clearAuthInputs();
-  document.getElementById('authTitle').textContent = 'เปลี่ยนรหัสผ่าน';
-  document.getElementById('authSubtitle').textContent = 'ตั้งรหัสผ่านใหม่สำหรับบัญชีนี้';
-  document.getElementById('authEmailInput').style.display = 'none';
-  document.getElementById('authPassInput').placeholder = 'รหัสผ่านใหม่';
-  document.getElementById('authPassConfirm').style.display = '';
-  document.getElementById('authSubmitBtn').textContent = 'บันทึกรหัสผ่านใหม่';
-  document.getElementById('authSubmitBtn').onclick = handleChangePassword;
-  document.getElementById('authToggleModeBtn').style.display = 'none';
-  document.getElementById('authOverlay').style.display = 'flex';
-}
-document.getElementById('authToggleModeBtn').addEventListener('click', ()=>{
-  if (authMode === 'login') showSignupScreen(); else showLoginScreen();
-});
-document.getElementById('authOverlay').addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter'){ document.getElementById('authSubmitBtn').click(); }
-});
-
-async function handleSignup(){
-  const email = document.getElementById('authEmailInput').value.trim();
-  const p1 = document.getElementById('authPassInput').value;
-  const p2 = document.getElementById('authPassConfirm').value;
-  const errEl = document.getElementById('authError');
-  if (!email){ errEl.textContent = 'กรอกอีเมล'; return; }
-  if (p1.length < 6){ errEl.textContent = 'รหัสผ่านควรมีอย่างน้อย 6 ตัวอักษร'; return; }
-  if (p1 !== p2){ errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; return; }
-  const { data, error } = await sb.auth.signUp({ email, password: p1 });
-  if (error){ errEl.textContent = error.message; return; }
-  if (data.session){
-    unlockApp();
-  } else {
-    errEl.classList.add('ok');
-    errEl.textContent = 'สมัครสำเร็จ — ตรวจอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ';
-  }
-}
-async function handleLogin(){
-  const email = document.getElementById('authEmailInput').value.trim();
-  const p1 = document.getElementById('authPassInput').value;
-  const errEl = document.getElementById('authError');
-  const { error } = await sb.auth.signInWithPassword({ email, password: p1 });
-  if (error){ errEl.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + error.message; return; }
-  unlockApp();
-}
-async function handleChangePassword(){
-  const p1 = document.getElementById('authPassInput').value;
-  const p2 = document.getElementById('authPassConfirm').value;
-  const errEl = document.getElementById('authError');
-  if (p1.length < 6){ errEl.textContent = 'รหัสผ่านควรมีอย่างน้อย 6 ตัวอักษร'; return; }
-  if (p1 !== p2){ errEl.textContent = 'รหัสผ่านไม่ตรงกัน'; return; }
-  const { error } = await sb.auth.updateUser({ password: p1 });
-  if (error){ errEl.textContent = error.message; return; }
-  errEl.classList.add('ok');
-  errEl.textContent = 'เปลี่ยนรหัสผ่านเรียบร้อย ✓';
-  setTimeout(()=>{ document.getElementById('authOverlay').style.display = 'none'; }, 1100);
-}
-function unlockApp(){
-  document.getElementById('authOverlay').style.display = 'none';
-  document.getElementById('appShell').style.display = '';
-  initApp();
-}
-document.getElementById('changePassBtn').addEventListener('click', showChangeScreen);
-document.getElementById('lockBtn').addEventListener('click', async ()=>{
-  await sb.auth.signOut();
-  document.getElementById('appShell').style.display = 'none';
-  showLoginScreen();
-});
-
-// ---------- export: image / pdf ----------
-function buildExportRows(totals){
-  const otAmt = totals.sumOT * (Number(month.otRate)||0);
-  const rows = [];
-  rows.push(['เงินเดือน', Number(month.salary)||0]);
-  rows.push(['ใบประกอบ', Number(month.license)||0]);
-  rows.push(['ประสบการณ์', Number(month.experience)||0]);
-  rows.push([month.otherPositionNote ? `ตำแหน่งอื่นๆ (${month.otherPositionNote})` : 'ตำแหน่งอื่นๆ', Number(month.otherPosition)||0]);
-  (month.extraBase||[]).forEach(i => rows.push([i.label || 'รายการเพิ่มเติม', Number(i.amount)||0]));
-  rows.push(['__section__', 'รายการเบิก']);
-  rows.push([`OT (${fmt(totals.sumOT)} ชม. x ${month.otRate})`, otAmt]);
-  rows.push(['com รายวัน', totals.sumCom]);
-  rows.push(['com รายเดือน', Number(month.comMonthly)||0]);
-  rows.push(['ค่าเชียร์', Number(month.cheer)||0]);
-  rows.push(['ค่า CI', Number(month.ci)||0]);
-  rows.push([month.otherNote ? `อื่นๆ (${month.otherNote})` : 'อื่นๆ', Number(month.other)||0]);
-  (month.extraAdvance||[]).forEach(i => rows.push([i.label || 'รายการเพิ่มเติม', Number(i.amount)||0]));
-  rows.push(['__section__', 'รายการหัก']);
-  rows.push([month.ded1Label || 'รายการหัก', -(Number(month.ded1)||0)]);
-  rows.push(['ประกันสังคม', -(Number(month.ss)||0)]);
-  if (month.ded2Label) rows.push([month.ded2Label, -(Number(month.ded2)||0)]);
-  (month.extraDeduction||[]).forEach(i => rows.push([i.label || 'รายการหักเพิ่มเติม', -(Number(i.amount)||0)]));
-
-  let net = 0;
-  rows.forEach(([label, amt]) => { if (label !== '__section__') net += amt; });
-  return { rows, net };
-}
-function buildPrintableHtml(rows, net){
-  let rowsHtml = '';
-  rows.forEach(([label, amt])=>{
-    if (label === '__section__'){
-      rowsHtml += `<tr><td colspan="2" style="padding:10px 6px 4px;font-weight:700;color:#2C6B41;font-size:12px;text-transform:uppercase;letter-spacing:.3px;">${escapeAttr(amt)}</td></tr>`;
-    } else {
-      const color = amt < 0 ? '#B5433A' : '#20291F';
-      rowsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #DDE2D6;">${escapeAttr(label)}</td><td style="padding:6px;border-bottom:1px solid #DDE2D6;text-align:right;color:${color};font-family:'IBM Plex Mono',monospace;">${fmt(amt)}</td></tr>`;
-    }
-  });
-  return `
-    <div style="font-size:19px;font-weight:700;margin-bottom:2px;">${escapeAttr(branch)}</div>
-    <div style="font-size:13px;color:#5B6459;margin-bottom:16px;">สรุปเงินเดือนประจำเดือน ${monthLabelText(currentDate)}</div>
-    <table style="width:100%;border-collapse:collapse;font-family:'Sarabun',sans-serif;font-size:13px;">${rowsHtml}</table>
-    <div style="margin-top:16px;padding-top:10px;border-top:2px solid #3F8F5B;display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:#2C6B41;">
-      <span>รวมสุทธิ</span><span style="font-family:'IBM Plex Mono',monospace;">${fmt(net)} บาท</span>
-    </div>
-  `;
-}
-async function renderExportCanvas(){
-  const totals = renderDaily();
-  const { rows, net } = buildExportRows(totals);
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:640px;background:#fff;padding:26px;color:#20291F;';
-  wrapper.innerHTML = buildPrintableHtml(rows, net);
-  document.body.appendChild(wrapper);
-  const canvas = await html2canvas(wrapper, { scale: 2, backgroundColor: '#ffffff' });
-  document.body.removeChild(wrapper);
-  return canvas;
-}
-document.getElementById('exportImageBtn').addEventListener('click', async ()=>{
-  const statusEl = document.getElementById('exportStatus');
-  statusEl.textContent = 'กำลังสร้างรูปภาพ…';
-  try{
-    const canvas = await renderExportCanvas();
-    const link = document.createElement('a');
-    link.download = `เงินเดือน-${monthKey(currentDate)}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    statusEl.textContent = 'ดาวน์โหลดแล้ว ✓';
-  }catch(e){ statusEl.textContent = 'สร้างรูปภาพไม่สำเร็จ'; }
-  setTimeout(()=>{ statusEl.textContent=''; }, 3000);
-});
-document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
-  const statusEl = document.getElementById('exportStatus');
-  statusEl.textContent = 'กำลังสร้าง PDF…';
-  try{
-    const canvas = await renderExportCanvas();
-    const { jsPDF } = window.jspdf;
-    const pdfWidth = 210;
-    const pdfHeight = canvas.height * pdfWidth / canvas.width;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
-    doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
-    doc.save(`เงินเดือน-${monthKey(currentDate)}.pdf`);
-    statusEl.textContent = 'ดาวน์โหลดแล้ว ✓';
-  }catch(e){ statusEl.textContent = 'สร้าง PDF ไม่สำเร็จ'; }
-  setTimeout(()=>{ statusEl.textContent=''; }, 3000);
-});
-document.getElementById('exportExcelBtn').addEventListener('click', ()=>{
-  const statusEl = document.getElementById('exportStatus');
-  try{
-    const totals = renderDaily();
-    const { rows, net } = buildExportRows(totals);
-    const data = [[branch], [`สรุปเงินเดือนประจำเดือน ${monthLabelText(currentDate)}`], [], ['รายการ', 'จำนวน (บาท)']];
-    rows.forEach(([label, amt])=>{
-      if (label === '__section__') data.push([amt, '']);
-      else data.push([label, amt]);
-    });
-    data.push([]);
-    data.push(['รวมสุทธิ', net]);
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{ wch: 32 }, { wch: 16 }];
-
-    const dailyData = [['วันที่','ยอด (บาท)','เคส','OT (ชม.)','คอมรายวัน']];
-    month.daily.forEach(row=>{
-      const minThreshold = Math.min(...tiers.daily.map(t=>t.threshold), Infinity);
-      const com = (Number(row.sales)||0) < minThreshold ? 0 : lookupTier(Number(row.sales)||0, tiers.daily);
-      dailyData.push([row.day, row.sales||0, row.cases||0, row.ot||0, com]);
-    });
-    const ws2 = XLSX.utils.aoa_to_sheet(dailyData);
-    ws2['!cols'] = [{wch:8},{wch:12},{wch:8},{wch:10},{wch:12}];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'สรุปเงินเดือน');
-    XLSX.utils.book_append_sheet(wb, ws2, 'ยอดขายรายวัน');
-    XLSX.writeFile(wb, `เงินเดือน-${monthKey(currentDate)}.xlsx`);
-    statusEl.textContent = 'ดาวน์โหลดแล้ว ✓';
-  }catch(e){ statusEl.textContent = 'สร้างไฟล์ Excel ไม่สำเร็จ'; }
-  setTimeout(()=>{ statusEl.textContent=''; }, 3000);
-});
-
-// ---------- init ----------
-async function initApp(){
-  await loadTiers();
-  await loadBranch();
-  if (!branch) branch = 'คลินิคยา มอ ออ ตรัง';
-  await loadMonth();
-  renderAll();
-}
-(async function initAuth(){
-  const { data: { session } } = await sb.auth.getSession();
-  if (session){
-    unlockApp();
-  } else {
-    showLoginScreen();
-  }
-  sb.auth.onAuthStateChange((event, session)=>{
-    if (event === 'SIGNED_OUT'){
-      document.getElementById('appShell').style.display = 'none';
-      showLoginScreen();
-    }
-  });
-})();
 </script>
 </body>
 </html>
