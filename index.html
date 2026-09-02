@@ -321,8 +321,8 @@ tfoot td{font-weight:700; background:#0f172a}
 
 /* ---------- [1] CONFIG ----------------------------------- */
 const CONFIG = {
-  SUPABASE_URL : 'https://qgdzhamtkrbqhrkkutdr.supabase.co',   // TODO: ใส่ของจริง
-  SUPABASE_KEY : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE',                       // TODO: ใส่ของจริง
+  SUPABASE_URL : 'https://qgdzhamtkrbqhrkkutdr.supabase.co',
+  SUPABASE_KEY : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZHpoYW10a3JicWhya2t1dGRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc3MzY0MjksImV4cCI6MjEwMzMxMjQyOX0.oQkwcf08mndxr2wusE3uCM0Q8xbZvz4muxiP_4CSjiE',
   TABLE        : 'payroll_kv',
   OCR_FN       : 'read-attendance',
   ADMIN_FN     : 'admin-api',
@@ -338,10 +338,18 @@ const CONFIG = {
   }
 };
 
-/* ---------- [2] UTILS ------------------------------------ */
+/* ---------- [2] UTILS ------------------------------------
+ * U.$   -> getElementById  (ใช้กับ id เดี่ยว เช่น U.$('loginForm'))
+ * U.$$  -> querySelectorAll แล้วคืนเป็น array (ใช้กับ CSS selector หลาย element
+ *          เช่น U.$$('.pharm-only') หรือ U.$$('#tabNav button'))
+ * ก่อนหน้านี้ทั้งสองฟังก์ชันถูกประกาศด้วยชื่อ key เดียวกันคือ "$" ทำให้
+ * ตัวหลังทับตัวแรก ผลคือ U.$('loginForm') ถูกตีความเป็น
+ * querySelectorAll('loginForm') (มองเป็น tag selector) แล้วคืน array ว่าง
+ * ทำให้ addEventListener พังตั้งแต่โหลดหน้า และปุ่ม login/signup ใช้งานไม่ได้
+ * ----------------------------------------------------------*/
 const U = {
   $ : (id) => document.getElementById(id),
-  $: (sel, root=document) => [...root.querySelectorAll(sel)],
+  $$ : (sel, root=document) => [...root.querySelectorAll(sel)],
   num: (v) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g,'')); return Number.isFinite(n) ? n : 0; },
   money: (n) => U.num(n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2}),
   val: (id) => U.num(U.$(id)?.value),
@@ -527,7 +535,7 @@ const Tiers = {
       </tr>`).join('');
   },
   readTable(bodyId){
-    return U.$(`#${bodyId} tr`).map(tr=>({
+    return U.$$(`#${bodyId} tr`).map(tr=>({
       min: tr.querySelector('[data-f="min"]').value,
       amt: U.num(tr.querySelector('[data-f="amt"]').value)
     }));
@@ -679,7 +687,7 @@ const Daily = {
 
   refreshRow(i){
     const r=this.rows[i];
-    const tr=U.$(`#dailyBody tr[data-i="${i}"]`)[0]; if(!tr) return;
+    const tr=U.$$(`#dailyBody tr[data-i="${i}"]`)[0]; if(!tr) return;
     const ot=tr.querySelector('[data-f="ot"]'), com=tr.querySelector('[data-f="com"]');
     if (document.activeElement!==ot)  ot.value  = r.ot||'';
     if (document.activeElement!==com) com.value = r.com||'';
@@ -970,17 +978,17 @@ const App = {
 
   applyRoleVisibility(){
     const role = CURRENT_ROLE;
-    U.$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
-    U.$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
-    U.$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
+    U.$$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
+    U.$$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
+    U.$$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
   },
 
   bindTabs(){
-    U.$('#tabNav button').forEach(btn=>{ btn.onclick = () => this.showTab(btn.dataset.tab); });
+    U.$$('#tabNav button').forEach(btn=>{ btn.onclick = () => this.showTab(btn.dataset.tab); });
   },
   showTab(name){
-    U.$('#tabNav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-    U.$('.tab').forEach(s=>s.classList.add('hide'));
+    U.$$('#tabNav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+    U.$$('.tab').forEach(s=>s.classList.add('hide'));
     U.$(`tab-${name}`)?.classList.remove('hide');
   },
   openDefaultTab(){
