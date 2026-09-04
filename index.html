@@ -505,8 +505,14 @@ const Auth = {
     if (error){ U.setText('signupMsg', error.message); U.$('signupMsg').className='msg err'; return; }
 
     // ถ้าโปรเจกต์เปิด "ยืนยันอีเมล" จะยังไม่มี session ตอนนี้ ต้องให้ผู้ใช้ล็อกอินก่อนค่อยตั้ง role
+    // บั๊กเดิม: กรณีนี้ role/code ที่กรอกไว้จะหายไปเฉยๆ พอผู้ใช้ยืนยันอีเมลแล้วมาล็อกอินครั้งแรก
+    // profiles ไม่เคยถูกสร้าง ทำให้ App.boot() มองว่าไม่มี role แล้ว fallback เป็น 'staff' แบบเงียบๆ
+    // แก้โดยเก็บ role/code ที่ตั้งใจไว้ลง localStorage แล้วให้ App.boot() ไปเรียก complete-signup ให้ตอนล็อกอินครั้งแรก
     const token = data?.session?.access_token;
     if (!token){
+      try{
+        localStorage.setItem('pendingSignup', JSON.stringify({ email, full_name:name, role, code }));
+      }catch(_){}
       U.setText('signupMsg','สมัครสำเร็จ กรุณายืนยันอีเมลแล้วเข้าสู่ระบบเพื่อกำหนดบทบาท');
       U.$('signupMsg').className='msg ok';
       this.switchTab('login');
@@ -1040,9 +1046,38 @@ const App = {
     }
 
     CURRENT_USER = session.user;
-    const { data: profile } = await sb.from('profiles')
-      .select('role, full_name').eq('id', CURRENT_USER.id).single();
+    // ใช้ maybeSingle() แทน single() — single() จะโยน error ถ้าไม่มีแถวเลย ทำให้ profile
+    // กลายเป็น undefined แบบเงียบๆ และ role fallback เป็น 'staff' โดยไม่มีใครรู้ว่าเกิดอะไรขึ้น
+    let { data: profile } = await sb.from('profiles')
+      .select('role, full_name').eq('id', CURRENT_USER.id).maybeSingle();
+
+    if (!profile){
+      // ยังไม่มี profiles row เลย — เคสนี้เกิดตอนผู้ใช้สมัครแบบต้องยืนยันอีเมลก่อน
+      // (สมัคร -> ไม่มี session ทันที -> complete-signup ไม่เคยถูกเรียก) แล้วเพิ่งมาล็อกอินครั้งแรก
+      // ลองอ่าน role/code ที่เก็บไว้ตอนสมัคร (pendingSignup) แล้วเรียก complete-signup ให้อัตโนมัติ
+      let pending = null;
+      try{ pending = JSON.parse(localStorage.getItem('pendingSignup') || 'null'); }catch(_){}
+
+      if (pending && pending.email?.toLowerCase() === CURRENT_USER.email?.toLowerCase()){
+        try{
+          const result = await callFn(CONFIG.ADMIN_FN, {
+            action:'complete-signup',
+            payload:{ full_name: pending.full_name, role: pending.role, code: pending.code }
+          });
+          localStorage.removeItem('pendingSignup');
+          profile = { role: result.role, full_name: pending.full_name };
+          U.toast(`ตั้งค่าบทบาทเรียบร้อย: ${result.role}`, 'ok');
+        }catch(err){
+          U.toast('ตั้งค่าบทบาทอัตโนมัติไม่สำเร็จ: '+err.message, 'error');
+        }
+      }
+    }
+
     CURRENT_ROLE = profile?.role || 'staff';
+    if (!profile){
+      // ไม่มี pendingSignup ให้ใช้ หรือ complete-signup ล้มเหลว — เตือนแทนที่จะปล่อยให้เข้าใจผิดว่าเป็น staff จริงๆ
+      U.toast('บัญชีนี้ยังไม่ได้กำหนดบทบาทในระบบ (แสดงผลเป็นพนักงานชั่วคราว) กรุณาติดต่อผู้ดูแลระบบ', 'warn');
+    }
 
     U.$('authOverlay').classList.add('hide');
     U.$('appShell').classList.remove('hide');
