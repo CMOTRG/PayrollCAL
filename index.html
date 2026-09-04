@@ -249,21 +249,30 @@ tfoot td{font-weight:700; background:#0f172a}
   <!-- ---------- TAB: LEAVE ---------- -->
   <section id="tab-leave" class="tab card hide">
     <h3>วันลา / วันหยุด</h3>
-    <div class="row">
+    <p class="hint" id="leaveQuotaTitle">สิทธิ์วันลา/วันหยุด</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th style="text-align:left">รายการ</th><th>เงื่อนไข</th><th>สิทธิ์ทั้งปี</th><th>ใช้ไปแล้ว</th><th>คงเหลือ</th></tr>
+        </thead>
+        <tbody id="leaveQuotaBody"></tbody>
+      </table>
+    </div>
+    <p class="hint" id="leaveQuotaNote"></p>
+
+    <div class="row" style="margin-top:14px">
       <input type="date" id="lv_date">
-      <select id="lv_type">
-        <option value="ลาป่วย">ลาป่วย</option>
-        <option value="ลากิจ">ลากิจ</option>
-        <option value="ลาพักร้อน">ลาพักร้อน</option>
-        <option value="ขาดงาน">ขาดงาน</option>
-      </select>
+      <select id="lv_type"></select>
+      <input type="number" id="lv_days" min="0.5" step="0.5" value="1" placeholder="จำนวนวัน" style="width:110px">
       <input type="text" id="lv_note" placeholder="หมายเหตุ">
       <button class="btn small" id="lv_addBtn">เพิ่มรายการ</button>
     </div>
-    <table>
-      <thead><tr><th>วันที่</th><th>ประเภท</th><th>หมายเหตุ</th><th></th></tr></thead>
-      <tbody id="leaveBody"></tbody>
-    </table>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>วันที่</th><th>ประเภท</th><th>จำนวนวัน</th><th>หมายเหตุ</th><th></th></tr></thead>
+        <tbody id="leaveBody"></tbody>
+      </table>
+    </div>
   </section>
 
   <!-- ---------- TAB: ADMIN ---------- -->
@@ -335,6 +344,29 @@ const CONFIG = {
   DEFAULT_TIER_AMTS: {
     daily:  [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000],
     monthly:[500,1000,1500,2000,2500,3000,3500,4000,4500,5000,6000,7000]
+  },
+
+  // สิทธิ์วันลา/วันหยุด — คัดลอกมาจากตาราง "สรุปจำนวนวันหยุด" ในไฟล์ Excel คิดเงินเดือนของแต่ละประเภท
+  // เภสัชกรสาขา/เภสัชกรโมบาย ใช้สูตรเดียวกัน (ต่างกันแค่ตำแหน่งในสลิป) จึงยึดตาม "คิดเงินเดือนเภสัช"
+  // พนักงาน/ผู้ช่วย ยึดตาม "คิดเงินเดือนพนักงาน"
+  LEAVE_RULES: {
+    pharmacist: [
+      { key:'accum_holiday',           label:'วันหยุดสะสมนักขัต',                 cond:'-', quota:null },
+      { key:'public_holiday',          label:'วันหยุดนักขัต',                     cond:'-', quota:13 },
+      { key:'personal_sick_vacation',  label:'ลากิจ / ป่วยไม่มีใบ / พักผ่อน',      cond:'-', quota:10 },
+      { key:'sick_with_doc',           label:'ลาป่วยมีใบ',                        cond:'-', quota:10 }
+    ],
+    staff: [
+      { key:'accum_holiday', label:'วันหยุดสะสม',          cond:'ไม่เกิน 6 วัน',   quota:null },
+      { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',         cond:'ผ่านทดลองงาน',   quota:10 },
+      { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',      cond:'เข้าปีที่ 2',     quota:5 },
+      { key:'personal',      label:'ลากิจ',                cond:'เข้าปีที่ 3',     quota:5 },
+      { key:'marriage',      label:'ลาสมรส',               cond:'เข้าปีที่ 3',     quota:3 },
+      { key:'vacation',      label:'ลาพักผ่อน',            cond:'เข้าปีที่ 4',     quota:3 },
+      { key:'maternity',     label:'ลาคลอด',               cond:'เข้าปีที่ 4',     quota:'1 เดือน' },
+      { key:'ordination',    label:'ลาอุปสมบท',            cond:'เข้าปีที่ 4',     quota:7 },
+      { key:'funeral',       label:'ลาจัดการงานศพ',        cond:'ผ่านทดลองงาน',   quota:3 }
+    ]
   }
 };
 
@@ -811,22 +843,75 @@ const Salary = {
 
 /* ---------- [11] LEAVE ---------------------------------------
  * ไม่ผูกเดือน (ประวัติลาดูรวมทั้งปีได้) แต่ผูก user_id เสมอ
+ * สิทธิ์วันลา/วันหยุด แยกตามประเภทผู้ใช้ (CONFIG.LEAVE_RULES):
+ *   - เภสัชกรสาขา/เภสัชกรโมบาย (role='pharmacist') → ยึดตาม excel คิดเงินเดือนเภสัช
+ *   - พนักงาน/ผู้ช่วย (role='staff', และ admin ใช้ค่าเดียวกันเป็นค่าเริ่มต้น) → ยึดตาม excel คิดเงินเดือนพนักงาน
+ * แต่ละแถวลาเก็บ typeKey (อ้างอิง LEAVE_RULES) + days (จำนวนวัน, default 1)
+ * "ใช้ไปแล้ว" คำนวณสดจากผลรวม days ของรายการลาในปีปัจจุบันตาม typeKey นั้นๆ
  * ----------------------------------------------------------*/
 const Leave = {
   rows: [],
+
+  rulesForRole(){
+    return CURRENT_ROLE === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+  },
+
   async load(){ this.rows = await Store.getUser('leave', []); this.render(); },
+
+  populateTypeSelect(){
+    const sel = U.$('lv_type');
+    sel.innerHTML = this.rulesForRole().map(r=>`<option value="${r.key}">${r.label}</option>`).join('');
+  },
+
+  usedDays(key, year){
+    return this.rows
+      .filter(r => (r.typeKey===key) && (new Date(r.date).getFullYear()===year))
+      .reduce((sum,r)=>sum+(U.num(r.days)||1), 0);
+  },
+
+  renderQuota(){
+    const rules=this.rulesForRole(), year=new Date().getFullYear();
+    U.setText('leaveQuotaTitle', CURRENT_ROLE==='pharmacist'
+      ? 'สิทธิ์วันลา/วันหยุด — เภสัชกรสาขา/เภสัชกรโมบาย'
+      : 'สิทธิ์วันลา/วันหยุด — พนักงาน/ผู้ช่วย');
+    U.$('leaveQuotaBody').innerHTML = rules.map(r=>{
+      const used=this.usedDays(r.key, year);
+      const remain = (typeof r.quota === 'number') ? (r.quota-used) : '-';
+      return `<tr>
+        <td style="text-align:left">${r.label}</td>
+        <td>${r.cond}</td>
+        <td>${r.quota==null?'-':r.quota}</td>
+        <td>${used||0}</td>
+        <td>${remain}</td>
+      </tr>`;
+    }).join('');
+    U.setText('leaveQuotaNote', CURRENT_ROLE==='pharmacist'
+      ? `สิทธิ์ปี ${year} — *สะสม 3 รายการแรก (วันหยุดสะสมนักขัต / วันหยุดนักขัต / ลากิจฯ) ข้ามปีได้ไม่เกิน 7 วัน`
+      : `สิทธิ์ปี ${year} ตามเงื่อนไขอายุงานที่ระบุในแต่ละแถว`);
+  },
+
+  labelOf(row){
+    const hit=this.rulesForRole().find(r=>r.key===row.typeKey);
+    return hit ? hit.label : (row.type || row.typeKey || '-'); // row.type คือข้อมูลเก่าก่อนอัปเดต
+  },
+
   render(){
+    this.populateTypeSelect();
+    this.renderQuota();
     U.$('leaveBody').innerHTML = this.rows.map((r,i)=>`
-      <tr><td>${r.date}</td><td>${r.type}</td><td>${r.note||''}</td>
+      <tr><td>${r.date}</td><td>${this.labelOf(r)}</td><td>${U.num(r.days)||1}</td><td>${r.note||''}</td>
       <td><button class="btn-reset" data-del="${i}">ลบ</button></td></tr>`).join('');
   },
+
   bind(){
     U.$('lv_addBtn').onclick = async () => {
       const date=U.$('lv_date').value;
       if (!date) return U.toast('กรุณาเลือกวันที่','warn');
-      this.rows.push({ date, type:U.$('lv_type').value, note:U.$('lv_note').value.trim() });
+      const typeKey=U.$('lv_type').value;
+      const days=U.num(U.$('lv_days').value)||1;
+      this.rows.push({ date, typeKey, days, note:U.$('lv_note').value.trim() });
       await Store.setUser('leave', this.rows);
-      U.$('lv_note').value='';
+      U.$('lv_note').value=''; U.$('lv_days').value=1;
       this.render();
     };
     U.$('leaveBody').addEventListener('click', async (e)=>{
