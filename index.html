@@ -122,7 +122,7 @@ tfoot td{font-weight:700; background:#0f172a}
     <button data-tab="daily"  class="pharm-only">ยอดขายรายวัน</button>
     <button data-tab="salary" class="pharm-only">เงินเดือนเภสัชกร</button>
     <button data-tab="staff"  class="stf-only">เงินเดือนพนักงาน</button>
-    <button data-tab="tiers"  class="admin-only">ตั้งค่าคอมมิชชั่น</button>
+    <button data-tab="tiers"  class="pharm-strict">ตั้งค่าคอมมิชชั่น</button>
     <button data-tab="leave">วันลา/วันหยุด</button>
     <button data-tab="admin"  class="admin-only">ผู้ดูแลระบบ</button>
   </div>
@@ -227,8 +227,8 @@ tfoot td{font-weight:700; background:#0f172a}
 
   <!-- ---------- TAB: TIERS ---------- -->
   <section id="tab-tiers" class="tab card hide">
-    <h3>ตั้งค่าขั้นคอมมิชชั่น</h3>
-    <p class="hint">ข้อมูลนี้เป็นค่ากลาง ใช้ร่วมกันทั้งบริษัท บันทึกผ่านเซิร์ฟเวอร์เท่านั้น (admin เท่านั้นที่แก้ได้)</p>
+    <h3>ตั้งค่าขั้นคอมมิชชั่นของฉัน</h3>
+    <p class="hint">ตารางนี้เป็นของบัญชีคุณเองเท่านั้น ตั้งค่า/แก้ไขได้อิสระ ไม่ต้องรอ admin — ใช้คำนวณคอมรายวัน/รายเดือนของคุณเท่านั้น ไม่มีผลกับเภสัชกรคนอื่น</p>
     <div class="row">
       <strong>คอมรายวัน</strong>
       <div class="tbl-scroll" style="width:100%">
@@ -316,7 +316,7 @@ tfoot td{font-weight:700; background:#0f172a}
  *  [3] SUPABASE     สร้าง client + state ผู้ใช้ปัจจุบัน
  *  [4] STORE        อ่าน/เขียน payroll_kv แยก scope user / global
  *  [5] AUTH         login / signup (role ตัดสินที่ Edge Function เท่านั้น)
- *  [6] TIERS        ขั้นคอมมิชชั่น (ข้อมูลกลาง เขียนผ่าน Edge Function)
+ *  [6] TIERS        ขั้นคอมมิชชั่น (ส่วนตัวของเภสัชกรแต่ละคน เขียนตรงผ่าน payroll_kv ของตัวเอง)
  *  [7] OCR          อ่านตารางลงเวลาจากรูปด้วย AI
  *  [8] OT           คำนวณ OT ต่อวัน
  *  [9] DAILY        ตารางยอดขาย/OT/คอมรายวัน
@@ -452,7 +452,9 @@ const Store = {
     if (error){ console.warn('[Store.getGlobal]', error.message); return fallback; }
     return data?.value ?? fallback;
   }
-  // ไม่มี setGlobal ตรงๆ โดยเจตนา — การเขียนข้อมูลกลางต้องผ่าน Admin.saveTiers() / Admin.savePharmCode()
+  // ไม่มี setGlobal ตรงๆ โดยเจตนา — ข้อมูลกลางที่เหลืออยู่ (เช่น pharm_code) เขียนได้เฉพาะผ่าน
+  // Edge Function ฝั่ง admin เท่านั้น (RLS บล็อก client เขียนแถว global ตรงๆ)
+  // หมายเหตุ: ตั้งแต่เปลี่ยนขั้นคอมมิชชั่นให้เป็นข้อมูลส่วนตัวรายคน getGlobal() จึงไม่ถูกใช้แล้วในปัจจุบัน
 };
 
 /* ---------- [5] AUTH --------------------------------------
@@ -537,8 +539,9 @@ const Auth = {
 };
 
 /* ---------- [6] TIERS --------------------------------------
- * ข้อมูลกลาง โหลดผ่าน Store.getGlobal (RLS อนุญาตให้ทุกคน select ได้)
- * บันทึกผ่าน Admin.saveTiers() ซึ่งเรียก Edge Function action: set-tiers เท่านั้น
+ * ส่วนตัวของเภสัชกรแต่ละคน — เก็บที่แถวของ user เอง (key 'tiers' ผูก user_id จริง)
+ * เภสัชกรแก้ไข/บันทึกเองได้ตรงๆ ผ่าน Store.setUser (RLS อนุญาตให้เขียนแถวของตัวเองอยู่แล้ว
+ * เหมือนกับ daily/salary/leave) ไม่ต้องผ่าน admin หรือ Edge Function อีกต่อไป
  * ----------------------------------------------------------*/
 const Tiers = {
   data: { daily:[], monthly:[] },
@@ -550,8 +553,16 @@ const Tiers = {
     };
   },
   async load(){
-    const saved = await Store.getGlobal('tiers', null);
+    const saved = await Store.getUser('tiers', null);
     if (saved && saved.daily?.length) this.data = saved; else this.buildDefault();
+  },
+  async save(){
+    const payload = {
+      daily:   this.readTable('tierDailyBody'),
+      monthly: this.readTable('tierMonthlyBody')
+    };
+    await Store.setUser('tiers', payload);
+    this.data = payload;
   },
 
   lookup(sales, list){
@@ -582,7 +593,15 @@ const Tiers = {
     this.renderTable('tierDailyBody', this.data.daily);
     this.renderTable('tierMonthlyBody', this.data.monthly);
   },
-  bind(){ U.$('saveTiersBtn').onclick = () => Admin.saveTiers(); }
+  bind(){
+    U.$('saveTiersBtn').onclick = async () => {
+      try{
+        await this.save();
+        U.toast('บันทึกขั้นคอมมิชชั่นของคุณแล้ว','ok');
+        Daily.recalcAll(); Daily.render();
+      }catch(err){ U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
+    };
+  }
 };
 
 /* ---------- [7] OCR ----------------------------------------
@@ -945,19 +964,6 @@ const Admin = {
     }catch(err){ U.toast('โหลดรายชื่อผู้ใช้ไม่สำเร็จ: '+err.message,'error'); }
   },
 
-  async saveTiers(){
-    const payload = {
-      daily:   Tiers.readTable('tierDailyBody'),
-      monthly: Tiers.readTable('tierMonthlyBody')
-    };
-    try{
-      await callFn(CONFIG.ADMIN_FN, { action:'set-tiers', payload });
-      Tiers.data = payload;
-      U.toast('บันทึกขั้นคอมมิชชั่นแล้ว','ok');
-      Daily.recalcAll(); Daily.render();
-    }catch(err){ U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
-  },
-
   bind(){
     U.$('ad_saveCodeBtn').onclick = async () => {
       const code=U.$('ad_newCode').value.trim();
@@ -1101,6 +1107,9 @@ const App = {
     U.$$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
     U.$$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
     U.$$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
+    // pharm-strict: เฉพาะเภสัชกรจริงๆ เท่านั้น (ต่างจาก pharm-only ที่ admin ก็เห็นได้ด้วย)
+    // ใช้กับตั้งค่าคอมมิชชั่นส่วนตัว เพราะ admin ไม่มีตารางคอมของตัวเองที่มีความหมาย
+    U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
   },
 
   bindTabs(){
@@ -1150,4 +1159,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 </body>
-</html>
+</html>ฆ
