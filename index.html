@@ -295,20 +295,6 @@ tfoot td{font-weight:700; background:#0f172a}
       </table>
     </div>
     <p class="hint" id="leaveQuotaNote"></p>
-
-    <div class="row" style="margin-top:14px">
-      <input type="date" id="lv_date">
-      <select id="lv_type"></select>
-      <input type="number" id="lv_days" min="0.5" step="0.5" value="1" placeholder="จำนวนวัน" style="width:110px">
-      <input type="text" id="lv_note" placeholder="หมายเหตุ">
-      <button class="btn small" id="lv_addBtn">เพิ่มรายการ</button>
-    </div>
-    <div class="tbl-scroll">
-      <table>
-        <thead><tr><th>วันที่</th><th>ประเภท</th><th>จำนวนวัน</th><th>หมายเหตุ</th><th></th></tr></thead>
-        <tbody id="leaveBody"></tbody>
-      </table>
-    </div>
   </section>
 
   <!-- ---------- TAB: ADMIN ---------- -->
@@ -955,47 +941,44 @@ const Salary = {
 };
 
 /* ---------- [11] LEAVE ---------------------------------------
- * ไม่ผูกเดือน (ประวัติลาดูรวมทั้งปีได้) แต่ผูก user_id เสมอ
- * สิทธิ์วันลา/วันหยุด แยกตามประเภทผู้ใช้ (CONFIG.LEAVE_RULES):
- *   - เภสัชกรสาขา/เภสัชกรโมบาย (role='pharmacist') → ยึดตาม excel คิดเงินเดือนเภสัช
- *   - พนักงาน/ผู้ช่วย (role='staff', และ admin ใช้ค่าเดียวกันเป็นค่าเริ่มต้น) → ยึดตาม excel คิดเงินเดือนพนักงาน
- * แต่ละแถวลาเก็บ typeKey (อ้างอิง LEAVE_RULES) + days (จำนวนวัน, default 1)
- * "ใช้ไปแล้ว" คำนวณสดจากผลรวม days ของรายการลาในปีปัจจุบันตาม typeKey นั้นๆ
+ * สิทธิ์วันลา/วันหยุด แยกตามประเภทผู้ใช้ (CONFIG.LEAVE_RULES) เหมือนเดิม
+ * เปลี่ยนจากการบันทึกทีละรายการ (วันที่/ประเภท/จำนวนวัน) เป็นให้ผู้ใช้กรอกจำนวน
+ * "ใช้ไปแล้ว" ของแต่ละประเภทตรงๆ ในตาราง — เก็บเป็น { [ruleKey]: usedDays }
+ * ผูก user_id + ปี (key เช่น 'leaveUsed:2026') เพื่อให้สิทธิ์รีเซ็ตใหม่ทุกปีเหมือนเดิม
+ * "คงเหลือ" คำนวณสดจาก quota - used ที่กรอก (อัปเดตทันทีตอนพิมพ์ ไม่ต้องกดบันทึก)
  * ----------------------------------------------------------*/
 const Leave = {
-  rows: [],
+  usedMap: {},
+  year: new Date().getFullYear(),
 
   rulesForRole(){
     return CURRENT_ROLE === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
   },
 
-  async load(){ this.rows = await Store.getUser('leave', []); this.render(); },
-
-  populateTypeSelect(){
-    const sel = U.$('lv_type');
-    sel.innerHTML = this.rulesForRole().map(r=>`<option value="${r.key}">${r.label}</option>`).join('');
+  async load(){
+    this.year = new Date().getFullYear();
+    this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
+    this.render();
   },
 
-  usedDays(key, year){
-    return this.rows
-      .filter(r => (r.typeKey===key) && (new Date(r.date).getFullYear()===year))
-      .reduce((sum,r)=>sum+(U.num(r.days)||1), 0);
-  },
+  saveUsed: U.debounce(()=>{
+    Store.setUser(`leaveUsed:${Leave.year}`, Leave.usedMap).catch(()=>{});
+  }, 500),
 
   renderQuota(){
-    const rules=this.rulesForRole(), year=new Date().getFullYear();
+    const rules=this.rulesForRole(), year=this.year;
     U.setText('leaveQuotaTitle', CURRENT_ROLE==='pharmacist'
       ? 'สิทธิ์วันลา/วันหยุด — เภสัชกรสาขา/เภสัชกรโมบาย'
       : 'สิทธิ์วันลา/วันหยุด — พนักงาน/ผู้ช่วย');
     U.$('leaveQuotaBody').innerHTML = rules.map(r=>{
-      const used=this.usedDays(r.key, year);
+      const used = U.num(this.usedMap[r.key]) || 0;
       const remain = (typeof r.quota === 'number') ? (r.quota-used) : '-';
       return `<tr>
         <td style="text-align:left">${r.label}</td>
         <td>${r.cond}</td>
         <td>${r.quota==null?'-':r.quota}</td>
-        <td>${used||0}</td>
-        <td>${remain}</td>
+        <td><input type="number" class="leave-used-input" data-key="${r.key}" min="0" step="0.5" value="${used||0}"></td>
+        <td data-remain-for="${r.key}">${remain}</td>
       </tr>`;
     }).join('');
     U.setText('leaveQuotaNote', CURRENT_ROLE==='pharmacist'
@@ -1003,35 +986,21 @@ const Leave = {
       : `สิทธิ์ปี ${year} ตามเงื่อนไขอายุงานที่ระบุในแต่ละแถว`);
   },
 
-  labelOf(row){
-    const hit=this.rulesForRole().find(r=>r.key===row.typeKey);
-    return hit ? hit.label : (row.type || row.typeKey || '-'); // row.type คือข้อมูลเก่าก่อนอัปเดต
-  },
-
-  render(){
-    this.populateTypeSelect();
-    this.renderQuota();
-    U.$('leaveBody').innerHTML = this.rows.map((r,i)=>`
-      <tr><td>${r.date}</td><td>${this.labelOf(r)}</td><td>${U.num(r.days)||1}</td><td>${r.note||''}</td>
-      <td><button class="btn-reset" data-del="${i}">ลบ</button></td></tr>`).join('');
-  },
+  render(){ this.renderQuota(); },
 
   bind(){
-    U.$('lv_addBtn').onclick = async () => {
-      const date=U.$('lv_date').value;
-      if (!date) return U.toast('กรุณาเลือกวันที่','warn');
-      const typeKey=U.$('lv_type').value;
-      const days=U.num(U.$('lv_days').value)||1;
-      this.rows.push({ date, typeKey, days, note:U.$('lv_note').value.trim() });
-      await Store.setUser('leave', this.rows);
-      U.$('lv_note').value=''; U.$('lv_days').value=1;
-      this.render();
-    };
-    U.$('leaveBody').addEventListener('click', async (e)=>{
-      const btn=e.target.closest('[data-del]'); if(!btn) return;
-      this.rows.splice(+btn.dataset.del,1);
-      await Store.setUser('leave', this.rows);
-      this.render();
+    U.$('leaveQuotaBody').addEventListener('input', (e)=>{
+      const inp=e.target.closest('.leave-used-input'); if(!inp) return;
+      const key=inp.dataset.key;
+      const used=U.num(inp.value);
+      this.usedMap[key]=used;
+
+      const rule=this.rulesForRole().find(r=>r.key===key);
+      const remainCell=U.$$(`[data-remain-for="${key}"]`)[0];
+      if (remainCell && rule){
+        remainCell.textContent = (typeof rule.quota==='number') ? (rule.quota-used) : '-';
+      }
+      this.saveUsed();
     });
   }
 };
