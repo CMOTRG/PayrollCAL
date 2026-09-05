@@ -152,7 +152,7 @@ tfoot td{font-weight:700; background:#0f172a}
   </div>
 
   <div class="tabs" id="tabNav">
-    <button data-tab="daily"  class="pharm-only">ยอดขายรายวัน</button>
+    <button data-tab="daily"  class="sales-only">ยอดขายรายวัน</button>
     <button data-tab="salary" class="pharm-only">เงินเดือนเภสัชกร</button>
     <button data-tab="staff"  class="stf-only">เงินเดือนพนักงาน</button>
     <button data-tab="tiers"  class="pharm-strict">ตั้งค่าคอมมิชชั่น</button>
@@ -189,7 +189,7 @@ tfoot td{font-weight:700; background:#0f172a}
         </tfoot>
       </table>
     </div>
-    <p class="hint">** ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม./วัน (ฐานงาน 8 ชม. + พัก 1 ชม.)</p>
+    <p class="hint" id="dailyOtHint">** ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม./วัน (ฐานงาน 8 ชม. + พัก 1 ชม.)</p>
   </section>
 
   <!-- ---------- TAB: SALARY (เภสัชกร) ---------- -->
@@ -375,7 +375,13 @@ const CONFIG = {
   // การตรวจโค้ดลับเภสัชกรทำที่ Edge Function (action: complete-signup) เท่านั้น
   SYSTEM_ID    : '00000000-0000-0000-0000-000000000000', // ใช้แทน user_id สำหรับข้อมูล "กลาง" (tiers, pharm_code)
 
-  WORK: { standardHours: 8, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 },
+  // เกณฑ์เวลาทำงานก่อนเริ่มคิด OT แยกตามประเภทผู้ใช้
+  //   เภสัชกร (สาขา/โมบาย): ฐานงาน 8 ชม. + พัก 1 ชม. → เกิน 9 ชม. (รวมพัก) ถือเป็น OT
+  //   พนักงาน/ผู้ช่วย       : ฐานงาน 9 ชม. + พัก 1 ชม. → เกิน 10 ชม. (รวมพัก) ถือเป็น OT
+  WORK: {
+    pharmacist: { standardHours: 8, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 },
+    staff:      { standardHours: 9, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 }
+  },
 
   DEFAULT_TIER_AMTS: {
     daily:  [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000],
@@ -722,20 +728,26 @@ const OCR = {
 };
 
 /* ---------- [8] OT ------------------------------------------
- * ฐานงานปกติ 8 ชม. + พัก 1 ชม. → ทำงานวันละ 10+1 ชม. = OT 2 ชม.
+ * เกณฑ์ก่อนเริ่มคิด OT แยกตามประเภทผู้ใช้ (ดู CONFIG.WORK):
+ *   เภสัชกร : ฐานงาน 8 ชม. + พัก 1 ชม. → ทำงานเกิน 9 ชม. (รวมพัก) ส่วนเกินคิดเป็น OT
+ *   พนักงาน : ฐานงาน 9 ชม. + พัก 1 ชม. → ทำงานเกิน 10 ชม. (รวมพัก) ส่วนเกินคิดเป็น OT
  * ----------------------------------------------------------*/
 const OT = {
-  calc(first,last,otFromImage=null){
+  ruleFor(role){
+    return CONFIG.WORK[role] || CONFIG.WORK.pharmacist;
+  },
+  calc(first,last,otFromImage=null,role=CURRENT_ROLE){
+    const rule = this.ruleFor(role);
     if (otFromImage!=null && otFromImage!=='' && Number.isFinite(+otFromImage)){
-      return Math.min(Math.max(+otFromImage,0), CONFIG.WORK.otMaxPerDay);
+      return Math.min(Math.max(+otFromImage,0), rule.otMaxPerDay);
     }
     const a=U.toHours(first), b=U.toHours(last);
     if (a==null||b==null) return 0;
     let span=b-a; if (span<0) span+=24;   // กะข้ามคืน
-    const worked=span-CONFIG.WORK.breakHours;
-    const ot=worked-CONFIG.WORK.standardHours;
+    const worked=span-rule.breakHours;
+    const ot=worked-rule.standardHours;
     if (ot<=0) return 0;
-    return Math.min(U.round(ot,CONFIG.WORK.otStep), CONFIG.WORK.otMaxPerDay);
+    return Math.min(U.round(ot,rule.otStep), rule.otMaxPerDay);
   }
 };
 
@@ -747,6 +759,14 @@ const Daily = {
   rows: [],
   blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false}; },
   init(days=31){ this.rows=Array.from({length:days},(_,i)=>this.blank(i+1)); },
+
+  /** อัปเดตข้อความอธิบายเกณฑ์ OT ใต้ตาราง ให้ตรงกับ role ของผู้ใช้ที่ล็อกอินอยู่ */
+  updateOtHint(){
+    const rule = OT.ruleFor(CURRENT_ROLE);
+    const totalSpan = rule.standardHours + rule.breakHours;
+    U.setText('dailyOtHint',
+      `** ทำงานวันละ ${rule.standardHours}+${rule.breakHours} ชม. (รวมพัก ${totalSpan} ชม.) ส่วนที่เกินคิดเป็น OT (ฐานงาน ${rule.standardHours} ชม. + พัก ${rule.breakHours} ชม.)`);
+  },
 
   render(){
     const body=U.$('dailyBody');
@@ -761,6 +781,7 @@ const Daily = {
         <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}"></td>
         <td><button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
       </tr>`).join('');
+    this.updateOtHint();
     this.summary();
   },
 
@@ -1177,6 +1198,8 @@ const App = {
     // pharm-strict: เฉพาะเภสัชกรจริงๆ เท่านั้น (ต่างจาก pharm-only ที่ admin ก็เห็นได้ด้วย)
     // ใช้กับตั้งค่าคอมมิชชั่นส่วนตัว เพราะ admin ไม่มีตารางคอมของตัวเองที่มีความหมาย
     U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
+    // sales-only: ตารางยอดขายรายวัน ใช้ร่วมกันได้ทั้งเภสัชกรและพนักงาน/ผู้ช่วย (admin เห็นเพื่อพรีวิว)
+    U.$$('.sales-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='staff'||role==='admin')));
   },
 
   bindTabs(){
