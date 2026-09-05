@@ -61,6 +61,39 @@ tfoot td{font-weight:700; background:#0f172a}
 .btn-reset{border:none; background:transparent; color:var(--warn); cursor:pointer; font-size:14px}
 .tbl-scroll{overflow-x:auto}
 
+/* ---- Tiers tab: card-grid layout for commission steps ---- */
+.tier-tab h3{margin-bottom:6px}
+.tier-tab > .hint{margin-top:0; margin-bottom:20px}
+.tier-section{margin-bottom:22px; padding-bottom:22px; border-bottom:1px solid var(--line)}
+.tier-section:last-of-type{border-bottom:none; padding-bottom:0}
+.tier-section-head{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap}
+.tier-section-head h4{margin:0; font-size:14.5px; font-weight:600; color:var(--txt); letter-spacing:.2px}
+.tier-section-head h4 .hint{margin-left:4px; font-weight:400}
+.tier-add-btn{width:auto; padding:6px 12px; font-size:12.5px}
+
+.tier-grid{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-top:10px}
+.tier-item{
+  display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:end;
+  background:#0b1526; border:1px solid var(--line); border-radius:8px; padding:10px 10px;
+}
+.tier-field label{display:block; font-size:11px; color:var(--muted); margin-bottom:4px; font-weight:500}
+.tier-field input{
+  width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--line);
+  background:#0f172a; color:var(--txt); text-align:right; font-variant-numeric:tabular-nums; font-size:13.5px;
+}
+.tier-field input:focus{outline:none; border-color:var(--pri)}
+.tier-del{
+  width:32px; height:32px; border-radius:6px; border:1px solid var(--line); background:transparent;
+  color:var(--muted); cursor:pointer; font-size:15px; line-height:1; flex-shrink:0;
+}
+.tier-del:hover{background:rgba(239,68,68,.12); border-color:var(--err); color:var(--err)}
+.tier-empty{grid-column:1/-1; font-size:13px; color:var(--muted); padding:10px 2px}
+
+@media (max-width:640px){
+  .tier-grid{grid-template-columns:1fr}
+  .tier-item{grid-template-columns:1fr 1fr auto}
+}
+
 #toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--card); border:1px solid var(--line); padding:10px 18px; border-radius:8px; opacity:0; transition:.25s; pointer-events:none; z-index:200;}
 #toast.is-visible{opacity:1; transform:translateX(-50%) translateY(0)}
 .toast--ok{border-color:var(--ok); color:var(--ok)}
@@ -226,24 +259,27 @@ tfoot td{font-weight:700; background:#0f172a}
   </section>
 
   <!-- ---------- TAB: TIERS ---------- -->
-  <section id="tab-tiers" class="tab card hide">
+  <section id="tab-tiers" class="tab card hide tier-tab">
     <h3>ตั้งค่าขั้นคอมมิชชั่นของฉัน</h3>
     <p class="hint">ตารางนี้เป็นของบัญชีคุณเองเท่านั้น ตั้งค่า/แก้ไขได้อิสระ ไม่ต้องรอ admin — ใช้คำนวณคอมรายวัน/รายเดือนของคุณเท่านั้น ไม่มีผลกับเภสัชกรคนอื่น</p>
-    <div class="row">
-      <strong>คอมรายวัน</strong>
-      <div class="tbl-scroll" style="width:100%">
-        <table><thead><tr><th>ยอดขายขั้นต่ำ (บาท)</th><th>ค่าคอม (บาท)</th></tr></thead>
-        <tbody id="tierDailyBody"></tbody></table>
+
+    <div class="tier-section">
+      <div class="tier-section-head">
+        <h4>คอมรายวัน <span class="hint">(อิงยอดขายแต่ละวัน)</span></h4>
+        <button type="button" class="btn small secondary tier-add-btn" id="tierDailyAddBtn">+ เพิ่มขั้น</button>
       </div>
+      <div class="tier-grid" id="tierDailyBody"></div>
     </div>
-    <div class="row">
-      <strong>คอมรายเดือน (ยอดเฉลี่ย)</strong>
-      <div class="tbl-scroll" style="width:100%">
-        <table><thead><tr><th>ยอดเฉลี่ยขั้นต่ำ (บาท)</th><th>ค่าคอม (บาท)</th></tr></thead>
-        <tbody id="tierMonthlyBody"></tbody></table>
+
+    <div class="tier-section">
+      <div class="tier-section-head">
+        <h4>คอมรายเดือน <span class="hint">(อิงยอดขายเฉลี่ย/วัน)</span></h4>
+        <button type="button" class="btn small secondary tier-add-btn" id="tierMonthlyAddBtn">+ เพิ่มขั้น</button>
       </div>
+      <div class="tier-grid" id="tierMonthlyBody"></div>
     </div>
-    <button class="btn small" id="saveTiersBtn">บันทึกขั้นคอมมิชชั่น</button>
+
+    <button class="btn" id="saveTiersBtn">บันทึกขั้นคอมมิชชั่น</button>
   </section>
 
   <!-- ---------- TAB: LEAVE ---------- -->
@@ -575,25 +611,56 @@ const Tiers = {
   daily:(sales)=>Tiers.lookup(sales,Tiers.data.daily),
   monthly:(avg)=>Tiers.lookup(avg,Tiers.data.monthly),
 
+  /** วาดขั้นคอมเป็นการ์ดกริด (2 รายการ/แถวบนจอกว้าง, 1 รายการ/แถวบนมือถือ) แต่ละการ์ดมีปุ่มลบในตัว */
   renderTable(bodyId, list){
     const body=U.$(bodyId);
+    if (!list.length){
+      body.innerHTML = `<p class="tier-empty">ยังไม่มีขั้นคอม กด "เพิ่มขั้น" เพื่อเริ่มตั้งค่า</p>`;
+      return;
+    }
     body.innerHTML=list.map((t,i)=>`
-      <tr>
-        <td><input type="number" data-i="${i}" data-f="min" value="${t.min}"></td>
-        <td><input type="number" data-i="${i}" data-f="amt" value="${t.amt}"></td>
-      </tr>`).join('');
+      <div class="tier-item" data-i="${i}">
+        <div class="tier-field"><label>ยอดขั้นต่ำ</label>
+          <input type="number" inputmode="decimal" data-f="min" value="${t.min}"></div>
+        <div class="tier-field"><label>ค่าคอม</label>
+          <input type="number" inputmode="decimal" data-f="amt" value="${t.amt}"></div>
+        <button type="button" class="tier-del" data-del="${i}" title="ลบขั้นนี้" aria-label="ลบขั้นนี้">✕</button>
+      </div>`).join('');
   },
   readTable(bodyId){
-    return U.$$(`#${bodyId} tr`).map(tr=>({
-      min: tr.querySelector('[data-f="min"]').value,
-      amt: U.num(tr.querySelector('[data-f="amt"]').value)
+    return U.$$(`#${bodyId} .tier-item`).map(item=>({
+      min: item.querySelector('[data-f="min"]').value,
+      amt: U.num(item.querySelector('[data-f="amt"]').value)
     }));
+  },
+  addRow(bodyId){
+    const list = this.readTable(bodyId);
+    list.push({ min:'', amt:0 });
+    this.renderTable(bodyId, list);
+  },
+  removeRow(bodyId, index){
+    const list = this.readTable(bodyId);
+    list.splice(index, 1);
+    this.renderTable(bodyId, list);
   },
   render(){
     this.renderTable('tierDailyBody', this.data.daily);
     this.renderTable('tierMonthlyBody', this.data.monthly);
   },
   bind(){
+    U.$('tierDailyAddBtn').onclick   = () => this.addRow('tierDailyBody');
+    U.$('tierMonthlyAddBtn').onclick = () => this.addRow('tierMonthlyBody');
+
+    // ปุ่มลบ (delegated event เพราะจำนวนรายการเปลี่ยนได้ตลอด)
+    U.$('tierDailyBody').addEventListener('click', (e)=>{
+      const btn=e.target.closest('[data-del]'); if(!btn) return;
+      this.removeRow('tierDailyBody', +btn.dataset.del);
+    });
+    U.$('tierMonthlyBody').addEventListener('click', (e)=>{
+      const btn=e.target.closest('[data-del]'); if(!btn) return;
+      this.removeRow('tierMonthlyBody', +btn.dataset.del);
+    });
+
     U.$('saveTiersBtn').onclick = async () => {
       try{
         await this.save();
@@ -1159,4 +1226,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 </body>
-</html>ฆ
+</html>
