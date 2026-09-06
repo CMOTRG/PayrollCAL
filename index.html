@@ -65,6 +65,8 @@ tfoot td{font-weight:700; background:#0f172a}
 .tbl-del-btn:hover{background:rgba(239,68,68,.12); color:var(--err)}
 .extra-label-input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:#0f172a; color:var(--txt); text-align:left !important;}
 .tbl-scroll{overflow-x:auto}
+.role-select{padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:#0f172a; color:var(--txt); font-size:13px;}
+.role-select:disabled{opacity:.6; cursor:not-allowed}
 
 /* ---- Tiers tab: card-grid layout for commission steps ---- */
 .tier-tab h3{margin-bottom:6px}
@@ -1129,14 +1131,25 @@ const Leave = {
  * เซิร์ฟเวอร์เช็ค role=admin เองทุกครั้ง ไม่เชื่อ role จาก client
  * ----------------------------------------------------------*/
 const Admin = {
+  ROLE_LABEL: { pharmacist:'เภสัชกรสาขา', staff:'พนักงาน/ผู้ช่วย', admin:'ผู้ดูแลระบบ' },
+
   async loadUsers(){
     try{
       const list = await callFn(CONFIG.ADMIN_FN, { action:'list-users' });
-      U.$('userListBody').innerHTML = list.map(u=>`
-        <tr>
-          <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${u.role}</td>
+      U.$('userListBody').innerHTML = list.map(u=>{
+        const isSelf = u.id === CURRENT_USER.id;
+        const roleCell = isSelf
+          ? `<span title="ไม่สามารถเปลี่ยนบทบาทของตัวเองได้">${this.ROLE_LABEL[u.role]||u.role}</span>`
+          : `<select class="role-select" data-role-user="${u.id}" data-prev="${u.role}">
+              ${['staff','pharmacist','admin'].map(r=>
+                `<option value="${r}" ${r===u.role?'selected':''}>${this.ROLE_LABEL[r]}</option>`
+              ).join('')}
+            </select>`;
+        return `<tr>
+          <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${roleCell}</td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
     }catch(err){ U.toast('โหลดรายชื่อผู้ใช้ไม่สำเร็จ: '+err.message,'error'); }
   },
 
@@ -1159,6 +1172,27 @@ const Admin = {
         await callFn(CONFIG.ADMIN_FN, { action:'reset-password', payload:{ user_id:btn.dataset.resetUser, new_password:newPass } });
         U.toast('รีเซ็ตรหัสผ่านสำเร็จ','ok');
       }catch(err){ U.toast(err.message,'error'); }
+    });
+
+    // เปลี่ยนบทบาทสมาชิก — ยืนยันก่อนทุกครั้งเพราะกระทบสิทธิ์การเข้าถึงของผู้ใช้คนนั้นทันที
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const sel=e.target.closest('.role-select'); if(!sel) return;
+      const userId=sel.dataset.roleUser;
+      const prevRole=sel.dataset.prev;
+      const newRole=sel.value;
+      if (newRole===prevRole) return;
+
+      const ok = confirm(`ยืนยันเปลี่ยนบทบาทเป็น "${this.ROLE_LABEL[newRole]}" ?`);
+      if (!ok){ sel.value = prevRole; return; }
+
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-role', payload:{ user_id:userId, role:newRole } });
+        sel.dataset.prev = newRole;
+        U.toast('เปลี่ยนบทบาทแล้ว','ok');
+      }catch(err){
+        sel.value = prevRole;
+        U.toast('เปลี่ยนบทบาทไม่สำเร็จ: '+err.message,'error');
+      }
     });
 
     U.$('ad_loadSummaryBtn').onclick = async () => {
