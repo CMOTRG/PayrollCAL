@@ -59,6 +59,11 @@ tfoot td{font-weight:700; background:#0f172a}
 .mul-fixed{color:var(--err)}
 .hint{font-size:12px; color:var(--muted)}
 .btn-reset{border:none; background:transparent; color:var(--warn); cursor:pointer; font-size:14px}
+.tbl-add-btn{border:none; background:transparent; color:var(--pri); cursor:pointer; font-size:16px; font-weight:700; line-height:1; padding:2px 8px; border-radius:6px}
+.tbl-add-btn:hover{background:rgba(59,130,246,.12)}
+.tbl-del-btn{border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; padding:2px 6px; border-radius:6px}
+.tbl-del-btn:hover{background:rgba(239,68,68,.12); color:var(--err)}
+.extra-label-input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:#0f172a; color:var(--txt); text-align:left !important;}
 .tbl-scroll{overflow-x:auto}
 
 /* ---- Tiers tab: card-grid layout for commission steps ---- */
@@ -197,29 +202,37 @@ tfoot td{font-weight:700; background:#0f172a}
     <h3>สรุปเงินเดือนเภสัชกร</h3>
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th></tr></thead>
+        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th></th></tr></thead>
         <tbody>
-          <tr class="grp"><td colspan="4">รายได้ประจำ</td></tr>
-          <tr><td>เงินเดือน</td><td><input id="ph_salary" type="number" value="24000"></td><td>—</td><td class="amt" id="o_ph_salary">0.00</td></tr>
-          <tr><td>ใบประกอบ</td><td><input id="ph_license" type="number" value="12000"></td><td>—</td><td class="amt" id="o_ph_license">0.00</td></tr>
-          <tr><td>ประสบการณ์</td><td><input id="ph_exp" type="number"></td><td>—</td><td class="amt" id="o_ph_exp">0.00</td></tr>
-          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="ph_posOther" type="number"></td><td>—</td><td class="amt" id="o_ph_posOther">0.00</td></tr>
+          <tr class="grp"><td colspan="4">รายได้ประจำ</td><td><button type="button" class="tbl-add-btn" id="ph_fixed_addBtn" title="เพิ่มรายการ">+</button></td></tr>
+          <tr><td>เงินเดือน</td><td><input id="ph_salary" type="number" value="24000"></td><td>—</td><td class="amt" id="o_ph_salary">0.00</td><td></td></tr>
+          <tr><td>ใบประกอบ</td><td><input id="ph_license" type="number" value="12000"></td><td>—</td><td class="amt" id="o_ph_license">0.00</td><td></td></tr>
+          <tr><td>ประสบการณ์</td><td><input id="ph_exp" type="number"></td><td>—</td><td class="amt" id="o_ph_exp">0.00</td><td></td></tr>
+          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="ph_posOther" type="number"></td><td>—</td><td class="amt" id="o_ph_posOther">0.00</td><td></td></tr>
+        </tbody>
+        <tbody id="ph_fixed_extra"></tbody>
 
-          <tr class="grp"><td colspan="4">รายการเบิก</td></tr>
+        <tbody>
+          <tr class="grp"><td colspan="4">รายการเบิก</td><td><button type="button" class="tbl-add-btn" id="ph_claim_addBtn" title="เพิ่มรายการ">+</button></td></tr>
           <tr><td>OT</td><td><input id="ph_otHours" type="number" step="0.5"></td>
               <td><input id="ph_otRate" type="number" value="170"></td>
-              <td class="amt" id="o_ph_ot">0.00</td></tr>
-          <tr><td>com รายวัน</td><td><input id="ph_comDaily" type="number"></td><td>—</td><td class="amt" id="o_ph_comDaily">0.00</td></tr>
-          <tr><td>com รายเดือน</td><td><input id="ph_comMonthly" type="number"></td><td>—</td><td class="amt" id="o_ph_comMonthly">0.00</td></tr>
-          <tr><td>ค่าเชียร์</td><td><input id="ph_cheer" type="number"></td><td>—</td><td class="amt" id="o_ph_cheer">0.00</td></tr>
-          <tr><td>ค่า CI</td><td><input id="ph_ci" type="number"></td><td>—</td><td class="amt" id="o_ph_ci">0.00</td></tr>
-          <tr><td>อื่นๆ</td><td><input id="ph_other" type="number"></td><td>—</td><td class="amt" id="o_ph_other">0.00</td></tr>
-
-          <tr class="grp"><td colspan="4">รายการหัก</td></tr>
-          <tr><td>ประกันสังคม</td><td><input id="ph_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_sso">0.00</td></tr>
-          <tr><td>หักอื่นๆ</td><td><input id="ph_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_deductOther">0.00</td></tr>
+              <td class="amt" id="o_ph_ot">0.00</td><td></td></tr>
+          <tr><td>com รายวัน</td><td><input id="ph_comDaily" type="number"></td><td>—</td><td class="amt" id="o_ph_comDaily">0.00</td><td></td></tr>
+          <tr><td>com รายเดือน</td><td><input id="ph_comMonthly" type="number"></td><td>—</td><td class="amt" id="o_ph_comMonthly">0.00</td><td></td></tr>
+          <tr><td>ค่าเชียร์</td><td><input id="ph_cheer" type="number"></td><td>—</td><td class="amt" id="o_ph_cheer">0.00</td><td></td></tr>
+          <tr><td>ค่า CI</td><td><input id="ph_ci" type="number"></td><td>—</td><td class="amt" id="o_ph_ci">0.00</td><td></td></tr>
+          <tr><td>อื่นๆ</td><td><input id="ph_other" type="number"></td><td>—</td><td class="amt" id="o_ph_other">0.00</td><td></td></tr>
         </tbody>
-        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_ph_net">0.00</td></tr></tfoot>
+        <tbody id="ph_claim_extra"></tbody>
+
+        <tbody>
+          <tr class="grp"><td colspan="4">รายการหัก</td><td><button type="button" class="tbl-add-btn" id="ph_deduct_addBtn" title="เพิ่มรายการ">+</button></td></tr>
+          <tr><td>ประกันสังคม</td><td><input id="ph_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_sso">0.00</td><td></td></tr>
+          <tr><td>หักอื่นๆ</td><td><input id="ph_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_deductOther">0.00</td><td></td></tr>
+        </tbody>
+        <tbody id="ph_deduct_extra"></tbody>
+
+        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_ph_net">0.00</td><td></td></tr></tfoot>
       </table>
     </div>
     <div class="row">
@@ -233,24 +246,32 @@ tfoot td{font-weight:700; background:#0f172a}
     <h3>สรุปเงินเดือนพนักงาน/ผู้ช่วย</h3>
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th></tr></thead>
+        <thead><tr><th>รายการ</th><th>จำนวน</th><th>ตัวคูณ</th><th>จำนวน (บาท)</th><th></th></tr></thead>
         <tbody>
-          <tr class="grp"><td colspan="4">รายได้ประจำ</td></tr>
-          <tr><td>เงินเดือน</td><td><input id="st_salary" type="number"></td><td>—</td><td class="amt" id="o_st_salary">0.00</td></tr>
-          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="st_posOther" type="number"></td><td>—</td><td class="amt" id="o_st_posOther">0.00</td></tr>
+          <tr class="grp"><td colspan="4">รายได้ประจำ</td><td><button type="button" class="tbl-add-btn" id="st_fixed_addBtn" title="เพิ่มรายการ">+</button></td></tr>
+          <tr><td>เงินเดือน</td><td><input id="st_salary" type="number"></td><td>—</td><td class="amt" id="o_st_salary">0.00</td><td></td></tr>
+          <tr><td>ตำแหน่งอื่นๆ</td><td><input id="st_posOther" type="number"></td><td>—</td><td class="amt" id="o_st_posOther">0.00</td><td></td></tr>
+        </tbody>
+        <tbody id="st_fixed_extra"></tbody>
 
-          <tr class="grp"><td colspan="4">รายการเบิก</td></tr>
+        <tbody>
+          <tr class="grp"><td colspan="4">รายการเบิก</td><td><button type="button" class="tbl-add-btn" id="st_claim_addBtn" title="เพิ่มรายการ">+</button></td></tr>
           <tr><td>OT</td><td><input id="st_otHours" type="number" step="0.5"></td>
               <td><input id="st_otRate" type="number" value="62.5"></td>
-              <td class="amt" id="o_st_ot">0.00</td></tr>
-          <tr><td>com รายวัน</td><td><input id="st_comDaily" type="number"></td><td>—</td><td class="amt" id="o_st_comDaily">0.00</td></tr>
-          <tr><td>อื่นๆ</td><td><input id="st_other" type="number"></td><td>—</td><td class="amt" id="o_st_other">0.00</td></tr>
-
-          <tr class="grp"><td colspan="4">รายการหัก</td></tr>
-          <tr><td>ประกันสังคม</td><td><input id="st_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_sso">0.00</td></tr>
-          <tr><td>หักอื่นๆ</td><td><input id="st_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_deductOther">0.00</td></tr>
+              <td class="amt" id="o_st_ot">0.00</td><td></td></tr>
+          <tr><td>com รายวัน</td><td><input id="st_comDaily" type="number"></td><td>—</td><td class="amt" id="o_st_comDaily">0.00</td><td></td></tr>
+          <tr><td>อื่นๆ</td><td><input id="st_other" type="number"></td><td>—</td><td class="amt" id="o_st_other">0.00</td><td></td></tr>
         </tbody>
-        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_st_net">0.00</td></tr></tfoot>
+        <tbody id="st_claim_extra"></tbody>
+
+        <tbody>
+          <tr class="grp"><td colspan="4">รายการหัก</td><td><button type="button" class="tbl-add-btn" id="st_deduct_addBtn" title="เพิ่มรายการ">+</button></td></tr>
+          <tr><td>ประกันสังคม</td><td><input id="st_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_sso">0.00</td><td></td></tr>
+          <tr><td>หักอื่นๆ</td><td><input id="st_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_deductOther">0.00</td><td></td></tr>
+        </tbody>
+        <tbody id="st_deduct_extra"></tbody>
+
+        <tfoot><tr class="net"><td colspan="3">รวมสุทธิ</td><td class="amt" id="o_st_net">0.00</td><td></td></tr></tfoot>
       </table>
     </div>
     <div class="row">
@@ -864,10 +885,70 @@ const Daily = {
  * บันทึก/โหลดผูกทั้ง user_id และเดือน (key เช่น 'pharmSalary:2026-09')
  * ----------------------------------------------------------*/
 const Salary = {
+  /* ---- รายการเพิ่มเติมแบบ custom (add/remove ได้) ----
+   * group: 'fixed' (รายได้ประจำ) | 'claim' (รายการเบิก) | 'deduct' (รายการหัก)
+   * เก็บเป็น array [{label, amount}] แยกตาม prefix('ph'/'st') + group
+   * รายการหัก (deduct) แสดง/รวมยอดเป็นค่าลบเสมอ เหมือนแถวคงที่ (ประกันสังคม ฯลฯ)
+   * ---------------------------------------------------- */
+  extraContainerId(prefix, group){ return `${prefix}_${group}_extra`; },
+
+  readExtra(prefix, group){
+    const id = this.extraContainerId(prefix, group);
+    return U.$$(`#${id} tr`).map(tr=>({
+      label: tr.querySelector('.extra-label-input')?.value?.trim() || '',
+      amount: U.num(tr.querySelector('.extra-amt-input')?.value)
+    }));
+  },
+  renderExtra(prefix, group, items){
+    const el = U.$(this.extraContainerId(prefix, group));
+    if (!el) return;
+    const sign = group==='deduct' ? -1 : 1;
+    el.innerHTML = (items||[]).map((it,i)=>{
+      const amt = U.num(it.amount);
+      const label = (it.label||'').replace(/"/g,'&quot;');
+      return `<tr>
+        <td><input type="text" class="extra-label-input" data-prefix="${prefix}" data-group="${group}" data-i="${i}" placeholder="ชื่อรายการ" value="${label}"></td>
+        <td><input type="number" class="extra-amt-input" data-prefix="${prefix}" data-group="${group}" data-i="${i}" value="${it.amount||''}"></td>
+        <td class="${group==='deduct'?'mul-fixed':''}">${group==='deduct'?'-1':'—'}</td>
+        <td class="amt">${U.money(sign*amt)}</td>
+        <td><button type="button" class="tbl-del-btn" data-prefix="${prefix}" data-group="${group}" data-i="${i}" title="ลบรายการนี้">✕</button></td>
+      </tr>`;
+    }).join('');
+  },
+  /** อัปเดตแค่ตัวเลขคอลัมน์ "จำนวน (บาท)" ของแถว extra ที่มีอยู่แล้ว (ไม่ rebuild DOM กันเสียโฟกัสตอนพิมพ์) */
+  refreshExtraAmounts(prefix, group){
+    const sign = group==='deduct' ? -1 : 1;
+    U.$$(`#${this.extraContainerId(prefix, group)} tr`).forEach(tr=>{
+      const amtInput = tr.querySelector('.extra-amt-input');
+      const cell = tr.querySelector('.amt');
+      if (amtInput && cell) cell.textContent = U.money(sign*U.num(amtInput.value));
+    });
+  },
+  addExtra(prefix, group){
+    const items = this.readExtra(prefix, group);
+    items.push({ label:'', amount:0 });
+    this.renderExtra(prefix, group, items);
+    this.persist(prefix);
+  },
+  removeExtra(prefix, group, index){
+    const items = this.readExtra(prefix, group);
+    items.splice(index, 1);
+    this.renderExtra(prefix, group, items);
+    this.persist(prefix);
+  },
+  persist(prefix){
+    if (prefix==='ph'){ this.renderPharm(); Store.setUser(`pharmSalary:${App.month}`, this.readPharm()).catch(()=>{}); }
+    else { this.renderStaff(); Store.setUser(`staffSalary:${App.month}`, this.readStaff()).catch(()=>{}); }
+  },
+
   compute(p){
-    const fixed  = p.salary + p.license + p.exp + p.posOther;
-    const claim  = (p.otHours*p.otRate) + p.comDaily + p.comMonthly + p.cheer + p.ci + p.other;
-    const deduct = p.sso + p.deductOther;
+    const sum = (arr)=>(arr||[]).reduce((s,it)=>s+U.num(it.amount),0);
+    const extraFixedSum  = sum(p.extraFixed);
+    const extraClaimSum  = sum(p.extraClaim);
+    const extraDeductSum = sum(p.extraDeduct);
+    const fixed  = p.salary + p.license + p.exp + p.posOther + extraFixedSum;
+    const claim  = (p.otHours*p.otRate) + p.comDaily + p.comMonthly + p.cheer + p.ci + p.other + extraClaimSum;
+    const deduct = p.sso + p.deductOther + extraDeductSum;
     return { fixed, claim, deduct, net: fixed+claim-deduct };
   },
 
@@ -877,7 +958,10 @@ const Salary = {
       otHours:U.val('ph_otHours'), otRate:U.val('ph_otRate')||170,
       comDaily:U.val('ph_comDaily'), comMonthly:U.val('ph_comMonthly'),
       cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'),
-      sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther')
+      sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther'),
+      extraFixed: this.readExtra('ph','fixed'),
+      extraClaim: this.readExtra('ph','claim'),
+      extraDeduct: this.readExtra('ph','deduct')
     };
   },
   renderPharm(){
@@ -889,6 +973,9 @@ const Salary = {
       o_ph_sso:-p.sso, o_ph_deductOther:-p.deductOther, o_ph_net:r.net
     };
     Object.entries(out).forEach(([id,v])=>U.setText(id,U.money(v)));
+    this.refreshExtraAmounts('ph','fixed');
+    this.refreshExtraAmounts('ph','claim');
+    this.refreshExtraAmounts('ph','deduct');
     return r;
   },
 
@@ -897,7 +984,10 @@ const Salary = {
       salary:U.val('st_salary'), license:0, exp:0, posOther:U.val('st_posOther'),
       otHours:U.val('st_otHours'), otRate:U.val('st_otRate')||62.5,
       comDaily:U.val('st_comDaily'), comMonthly:0, cheer:0, ci:0, other:U.val('st_other'),
-      sso:U.val('st_sso'), deductOther:U.val('st_deductOther')
+      sso:U.val('st_sso'), deductOther:U.val('st_deductOther'),
+      extraFixed: this.readExtra('st','fixed'),
+      extraClaim: this.readExtra('st','claim'),
+      extraDeduct: this.readExtra('st','deduct')
     };
   },
   renderStaff(){
@@ -908,6 +998,9 @@ const Salary = {
       o_st_sso:-p.sso, o_st_deductOther:-p.deductOther, o_st_net:r.net
     };
     Object.entries(out).forEach(([id,v])=>U.setText(id,U.money(v)));
+    this.refreshExtraAmounts('st','fixed');
+    this.refreshExtraAmounts('st','claim');
+    this.refreshExtraAmounts('st','deduct');
     return r;
   },
 
@@ -925,17 +1018,43 @@ const Salary = {
   bind(){
     const savePharm=U.debounce(()=>Store.setUser(`pharmSalary:${App.month}`, this.readPharm()), 600);
     const saveStaff=U.debounce(()=>Store.setUser(`staffSalary:${App.month}`, this.readStaff()), 600);
+
+    // ครอบคลุมทั้ง input ของแถวคงที่ (id ขึ้นต้น ph_/st_) และแถว extra (ไม่มี id แต่อยู่ในแท็บเดียวกัน)
     document.addEventListener('input',(e)=>{
-      if (e.target.id?.startsWith('ph_')){ this.renderPharm(); savePharm(); }
-      if (e.target.id?.startsWith('st_')){ this.renderStaff(); saveStaff(); }
+      if (e.target.closest('#tab-salary')){ this.renderPharm(); savePharm(); }
+      if (e.target.closest('#tab-staff')){ this.renderStaff(); saveStaff(); }
+    });
+
+    // ปุ่ม "+" เพิ่มรายการ ของแต่ละหัวข้อ (รายได้ประจำ/รายการเบิก/รายการหัก) ทั้งเภสัชกรและพนักงาน
+    U.$('ph_fixed_addBtn').onclick  = () => this.addExtra('ph','fixed');
+    U.$('ph_claim_addBtn').onclick  = () => this.addExtra('ph','claim');
+    U.$('ph_deduct_addBtn').onclick = () => this.addExtra('ph','deduct');
+    U.$('st_fixed_addBtn').onclick  = () => this.addExtra('st','fixed');
+    U.$('st_claim_addBtn').onclick  = () => this.addExtra('st','claim');
+    U.$('st_deduct_addBtn').onclick = () => this.addExtra('st','deduct');
+
+    // ปุ่มลบ (✕) ของแต่ละแถว extra — delegated เพราะจำนวนแถวเปลี่ยนได้ตลอด
+    document.addEventListener('click',(e)=>{
+      const delBtn=e.target.closest('.tbl-del-btn'); if(!delBtn) return;
+      const { prefix, group, i } = delBtn.dataset;
+      this.removeExtra(prefix, group, +i);
     });
   },
 
   async load(){
-    const ph=await Store.getUser(`pharmSalary:${App.month}`, null);
-    if (ph) Object.entries(ph).forEach(([k,v])=>U.setVal('ph_'+k, v));
-    const st=await Store.getUser(`staffSalary:${App.month}`, null);
-    if (st) Object.entries(st).forEach(([k,v])=>U.setVal('st_'+k, v));
+    const skip = ['extraFixed','extraClaim','extraDeduct'];
+    const ph = (await Store.getUser(`pharmSalary:${App.month}`, null)) || {};
+    Object.entries(ph).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('ph_'+k, v); });
+    this.renderExtra('ph','fixed',  ph.extraFixed  || []);
+    this.renderExtra('ph','claim',  ph.extraClaim  || []);
+    this.renderExtra('ph','deduct', ph.extraDeduct || []);
+
+    const st = (await Store.getUser(`staffSalary:${App.month}`, null)) || {};
+    Object.entries(st).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('st_'+k, v); });
+    this.renderExtra('st','fixed',  st.extraFixed  || []);
+    this.renderExtra('st','claim',  st.extraClaim  || []);
+    this.renderExtra('st','deduct', st.extraDeduct || []);
+
     this.renderPharm(); this.renderStaff();
   }
 };
