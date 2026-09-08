@@ -912,6 +912,14 @@ const Daily = {
    * รองรับไฟล์ที่มีหลายแผ่นงาน — เลือกแผ่นงานได้จาก dropdown ก่อนนำเข้า
    * เทียบแถวด้วย "เลขวันที่" ในคอลัมน์ A (ไม่สนช่วงเวลา/วันในสัปดาห์)
    * วันไหนมีข้อมูล (ยอดขาย/เคส/คอม) อยู่แล้วจะข้ามไป ไม่ทับของเดิม
+   *
+   * บั๊กเดิม (แก้แล้ว): อ่านไฟล์ด้วย cellDates:true ทำให้ SheetJS แปลงเซลล์วันที่เป็น
+   * JS Date object ที่ "ผิดวัน" บนเครื่องที่ตั้งโซนเวลาเป็นบวก (เช่น Asia/Bangkok, UTC+7)
+   * เพราะฟังก์ชันแปลงค่าภายในของ SheetJS อิงโซนเวลาของเครื่องตอนแปลง ทำให้ค่า timestamp
+   * ที่ได้เพี้ยนไปเลย (ไม่ใช่แค่ปัญหา local vs UTC getter) เช่น 1 ก.ย. กลายเป็น 31 ส.ค. ทั้งเมื่อ
+   * อ่านด้วย .getDate() และ .getUTCDate() พิสูจน์แล้วด้วยการจำลองด้วย Node.js เทียบไฟล์จริง
+   * วิธีแก้: อ่านด้วย cellDates:false ให้ได้เลข serial ดิบของ Excel แทน แล้วแปลงเป็นวันที่เอง
+   * ด้วยสูตรคำนวณล้วนๆ แบบ UTC (ไม่พึ่งพา timezone ของเครื่องเลย) — ดู parseExcelDate ด้านล่าง
    * ----------------------------------------------------------*/
   _excelWorkbook: null,
   _excelParsed: null,
@@ -919,7 +927,7 @@ const Daily = {
   /** แปลงค่าจากเซลล์วันที่ (Date object, เลข serial ของ Excel, หรือ string เช่น "1/09/2026") ให้เป็น {day,month,year} */
   parseExcelDate(v){
     if (v instanceof Date && !isNaN(v)){
-      return { day:v.getDate(), month:v.getMonth()+1, year:v.getFullYear() };
+      return { day:v.getUTCDate(), month:v.getUTCMonth()+1, year:v.getUTCFullYear() };
     }
     if (typeof v === 'number' && Number.isFinite(v)){
       const ms = Math.round((v - 25569) * 86400 * 1000); // Excel serial (1900 system) -> unix ms
@@ -941,7 +949,7 @@ const Daily = {
   /** อ่านไฟล์เป็น workbook เท่านั้น (ยังไม่ parse แถวข้อมูล) เพื่อเอารายชื่อแผ่นงานไปทำ dropdown ก่อน */
   async readWorkbookFile(file){
     const buf = await file.arrayBuffer();
-    return XLSX.read(buf, { type:'array', cellDates:true });
+    return XLSX.read(buf, { type:'array', cellDates:false });
   },
 
   /** parse แถวข้อมูลของแผ่นงานที่ระบุ คืน array ของแถวที่อ่านวันที่ได้สำเร็จเท่านั้น (ข้ามหัวตาราง/แถวว่างอัตโนมัติ) */
