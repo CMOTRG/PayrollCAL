@@ -179,20 +179,22 @@ tfoot td{font-weight:700; background:#0f172a}
       <span class="hint">รองรับตารางที่มีคอลัมน์ OT ตรงๆ หรือมีแค่เวลาเข้า-ออก</span>
     </div>
 
-    <div class="row stf-only">
+    <div class="row sales-only">
       <input type="file" id="excelInput" accept=".xlsx,.xls">
       <button class="btn small" id="excelReadBtn">อ่านไฟล์ Excel</button>
-      <span class="hint">คอลัมน์ A=วันที่, B=ยอดขาย, C=เคส, D-F=ค่าคอมคนที่ 1-3 (เทียบแถวตามเลขวันที่)</span>
+      <span class="hint">คอลัมน์ A=วันที่, B=ยอดขาย, C=เคส (เฉพาะพนักงาน: D-F=ค่าคอมคนที่ 1-3) — เทียบแถวตามเลขวันที่</span>
     </div>
-    <div class="row stf-only hide" id="excelColPickRow">
+    <div class="row sales-only hide" id="excelColPickRow">
       <label class="hint" style="margin:0">แผ่นงาน:</label>
       <select id="excelSheetSelect"></select>
-      <label class="hint" style="margin:0">คอลัมน์ค่าคอมของฉัน:</label>
-      <select id="excelComCol">
-        <option value="D">คอลัมน์ D (ค่าคอมคนที่ 1)</option>
-        <option value="E">คอลัมน์ E (ค่าคอมคนที่ 2)</option>
-        <option value="F">คอลัมน์ F (ค่าคอมคนที่ 3)</option>
-      </select>
+      <span class="stf-only" id="excelComColWrap">
+        <label class="hint" style="margin:0">คอลัมน์ค่าคอมของฉัน:</label>
+        <select id="excelComCol">
+          <option value="D">คอลัมน์ D (ค่าคอมคนที่ 1)</option>
+          <option value="E">คอลัมน์ E (ค่าคอมคนที่ 2)</option>
+          <option value="F">คอลัมน์ F (ค่าคอมคนที่ 3)</option>
+        </select>
+      </span>
       <button class="btn small" id="excelApplyBtn">นำเข้าข้อมูล</button>
       <button class="btn small secondary" id="excelCancelBtn">ยกเลิก</button>
     </div>
@@ -945,9 +947,12 @@ const Daily = {
     }
   },
 
-  /* ---------- นำเข้า Excel (เฉพาะพนักงาน/ผู้ช่วย) --------------
+  /* ---------- นำเข้า Excel (พนักงาน/ผู้ช่วย และ เภสัชกรสาขา) ----
    * โครงไฟล์ที่รองรับ: A=วันที่, B=ยอดขาย, C=เคส, D-F=ค่าคอมคนที่ 1-3
-   * รองรับไฟล์ที่มีหลายแผ่นงาน — เลือกแผ่นงานได้จาก dropdown ก่อนนำเข้า
+   *   - staff  : ใช้ทั้ง B,C และเลือกคอลัมน์คอม D/E/F ของตัวเอง (mark เป็นค่ามือ)
+   *   - เภสัชกร: ใช้แค่ B (ยอดขาย) กับ C (เคส) เท่านั้น ไม่แตะ D-F เลย
+   *             ส่วนคอมยังคงคำนวณอัตโนมัติจากตารางขั้นคอมของตัวเอง (Tiers) ตามปกติ
+   * รองรับไฟล์ที่มีหลายแผ่นงาน — เลือกแผ่นงานได้จาก dropdown ก่อนนำเข้า (ทั้งสองบทบาท)
    * เทียบแถวด้วย "เลขวันที่" ในคอลัมน์ A (ไม่สนช่วงเวลา/วันในสัปดาห์)
    * วันไหนมีข้อมูล (ยอดขาย/เคส/คอม) อยู่แล้วจะข้ามไป ไม่ทับของเดิม
    *
@@ -1057,8 +1062,10 @@ const Daily = {
 
   applyExcelImport(){
     if (!this._excelParsed) return U.toast('กรุณาเลือกแผ่นงานที่มีข้อมูลถูกต้องก่อน','warn');
-    const col = U.$('excelComCol').value;
-    const colIndex = { D:0, E:1, F:2 }[col];
+    // staff: ใช้ค่าคอมจากคอลัมน์ D/E/F ที่เลือก และ mark เป็นค่ามือ (ไม่ให้ระบบคำนวณทับ)
+    // เภสัชกร: นำเข้าแค่ยอดขาย+เคส ส่วนคอมปล่อยให้คำนวณอัตโนมัติจากตารางขั้นคอมของตัวเองตามปกติ
+    const isStaff = CURRENT_ROLE === 'staff';
+    const colIndex = isStaff ? { D:0, E:1, F:2 }[U.$('excelComCol').value] : null;
 
     let filled=0, skipped=0;
     this._excelParsed.forEach(pr=>{
@@ -1070,9 +1077,11 @@ const Daily = {
 
       r.sales = pr.sales;
       r.cases = pr.cases;
-      r.com = pr.com[colIndex] || 0;
-      r.comManual = true; // ค่าคอมมาจากไฟล์โดยตรง ไม่ให้ระบบคำนวณทับจากตารางขั้นคอม
-      this.recalc(i);
+      if (isStaff){
+        r.com = pr.com[colIndex] || 0;
+        r.comManual = true; // ค่าคอมมาจากไฟล์โดยตรง ไม่ให้ระบบคำนวณทับจากตารางขั้นคอม
+      }
+      this.recalc(i); // เภสัชกร: comManual ยังเป็น false อยู่ -> recalc จะคำนวณคอมจาก Tiers.daily(sales) ให้อัตโนมัติ
       filled++;
     });
 
