@@ -52,6 +52,12 @@ th,td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:center}
 th{color:var(--muted); font-weight:600}
 td input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:#0f172a; color:var(--txt); text-align:center;}
 td input.is-manual{border-color:var(--warn); background:#3a2f12}
+.ot-input-group{display:flex; align-items:center; gap:3px; justify-content:center}
+.ot-input-group input{width:44px; padding:5px 3px; text-align:center; flex:0 0 auto}
+.ot-sep{color:var(--muted); font-size:12px}
+@media (max-width:640px){
+  .ot-input-group input{width:38px; padding:5px 2px; font-size:12px}
+}
 tfoot td{font-weight:700; background:#0f172a}
 .grp td{background:#0f172a; text-align:left; color:var(--pri); font-weight:700}
 .amt{text-align:right; font-variant-numeric:tabular-nums}
@@ -209,7 +215,7 @@ tfoot td{font-weight:700; background:#0f172a}
         <thead>
           <tr>
             <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
-            <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม.)</th>
+            <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม. : นาที)</th>
             <th>คอมรายวัน</th><th></th>
           </tr>
         </thead>
@@ -799,14 +805,21 @@ const OT = {
     const worked=span-rule.breakHours;
     const ot=worked-rule.standardHours;
     if (ot<=0) return 0;
-    return Math.min(U.round(ot,rule.otStep), rule.otMaxPerDay);
+    // เก็บค่าตรงตามจริง (หน่วยชม./นาที) ไม่ปัดเศษเป็นขั้น 0.5 ต่อวันแล้ว — การปัดเศษทำที่ยอดรวมท้ายตารางแทน (ดู Daily.summary)
+    return Math.min(ot, rule.otMaxPerDay);
   }
 };
 
 /* ---------- [9] DAILY ---------------------------------------
  * ตารางรายวัน: ยอดขาย/เคส/เวลาเข้า-ออก/OT/คอม
  * OT และคอม "แก้มือได้" — flag otManual/comManual กันไม่ให้ระบบเขียนทับ
- * รองรับนำเข้าจากไฟล์ Excel (เฉพาะ staff) — ดู readExcelFile/applyExcelImport ด้านล่าง
+ * รองรับนำเข้าจากไฟล์ Excel (staff เต็มรูปแบบ, เภสัชกรใช้แค่ยอดขาย+เคส) — ดู applyExcelImport ด้านล่าง
+ *
+ * OT ต่อวัน: เก็บ/แก้ไขเป็น "ชม. + นาที" ตรงตามจริง ไม่ปัดเศษราย
+ * ยอดรวม OT ท้ายตาราง (sumOt): ปัดเศษนาทีที่เหลือหลังรวมทุกวันแล้วตามตาราง
+ *   นาที 0-10 -> .00, 11-25 -> .25, 26-40 -> .50, 41-55 -> .75, 56-60 -> ปัดขึ้น 1 ชม.
+ *   เช่น รวมได้ 2 ชม. 13 นาที -> แสดงผล 2.25 ; รวมได้ 1 ชม. 45 นาที -> แสดงผล 1.75
+ *   ค่าที่ปัดแล้วนี้เองที่ถูกส่งต่อไปคูณอัตรา OT ในหน้าเงินเดือน (ดู Salary.syncFromDaily)
  * ----------------------------------------------------------*/
 const Daily = {
   rows: [],
@@ -818,24 +831,51 @@ const Daily = {
     const rule = OT.ruleFor(CURRENT_ROLE);
     const totalSpan = rule.standardHours + rule.breakHours;
     U.setText('dailyOtHint',
-      `** ทำงานวันละ ${rule.standardHours}+${rule.breakHours} ชม. (รวมพัก ${totalSpan} ชม.) ส่วนที่เกินคิดเป็น OT (ฐานงาน ${rule.standardHours} ชม. + พัก ${rule.breakHours} ชม.)`);
+      `** ทำงานวันละ ${rule.standardHours}+${rule.breakHours} ชม. (รวมพัก ${totalSpan} ชม.) ส่วนที่เกินคิดเป็น OT (ฐานงาน ${rule.standardHours} ชม. + พัก ${rule.breakHours} ชม.) `+
+      `กรอก OT แต่ละวันเป็นชม./นาทีตรงตามจริง — ยอดรวม OT ท้ายตารางจะปัดเศษนาทีที่เหลือ: 0-10 นาที→.00, 11-25→.25, 26-40→.50, 41-55→.75, 56-60→ปัดขึ้น 1 ชม.`);
   },
 
   render(){
     const body=U.$('dailyBody');
-    body.innerHTML=this.rows.map((r,i)=>`
+    body.innerHTML=this.rows.map((r,i)=>{
+      const {h:otH, m:otM} = this.splitHoursMinutes(r.ot);
+      return `
       <tr data-i="${i}">
         <td>${r.day}</td>
         <td><input class="in-num" data-f="sales" type="number" step="0.01" value="${r.sales||''}"></td>
         <td><input class="in-num" data-f="cases" type="number" step="1" value="${r.cases||''}"></td>
         <td><input class="in-time" data-f="in" type="text" placeholder="08:30" value="${r.in}"></td>
         <td><input class="in-time" data-f="out" type="text" placeholder="19:30" value="${r.out}"></td>
-        <td><input class="in-num ${r.otManual?'is-manual':''}" data-f="ot" type="number" step="0.5" value="${r.ot||''}"></td>
+        <td>
+          <div class="ot-input-group">
+            <input class="in-num ot-h ${r.otManual?'is-manual':''}" data-f="otH" type="number" min="0" step="1" placeholder="ชม." value="${otH||''}">
+            <span class="ot-sep">:</span>
+            <input class="in-num ot-m ${r.otManual?'is-manual':''}" data-f="otM" type="number" min="0" max="59" step="1" placeholder="นาที" value="${otM||''}">
+          </div>
+        </td>
         <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}"></td>
         <td><button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     this.updateOtHint();
     this.summary();
+  },
+
+  /** แปลงชม.ทศนิยม -> {h,m} (นาทีปัดเป็นจำนวนเต็มเสมอ กันเศษไม่ลงตัวจากทศนิยม) */
+  splitHoursMinutes(decimalHours){
+    const total = Math.max(0, U.num(decimalHours));
+    let h = Math.floor(total);
+    let m = Math.round((total - h) * 60);
+    if (m >= 60){ h += 1; m -= 60; }
+    return { h, m };
+  },
+  /** ปัดเศษนาทีที่เหลือ (0-59) ตามตารางที่กำหนด: 0-10->.00, 11-25->.25, 26-40->.50, 41-55->.75, 56-60->1 (ปัดขึ้นเต็มชม.) */
+  roundOtFraction(mins){
+    if (mins <= 10) return 0;
+    if (mins <= 25) return 0.25;
+    if (mins <= 40) return 0.5;
+    if (mins <= 55) return 0.75;
+    return 1;
   },
 
   recalc(i){
@@ -848,8 +888,16 @@ const Daily = {
   summary(){
     const sum=(f)=>this.rows.reduce((a,r)=>a+U.num(r[f]),0);
     const workedDays=this.rows.filter(r=>U.num(r.sales)>0).length;
+
+    // ยอดรวม OT: ปัดเศษนาทีที่เหลือหลังรวมทุกวันแล้วตามตารางที่กำหนด (ไม่ใช่ปัดทีละวัน)
+    const rawOtHours = sum('ot');
+    const totalOtMinutes = Math.round(rawOtHours * 60);
+    const otWholeHours = Math.floor(totalOtMinutes / 60);
+    const otRemainMin = totalOtMinutes % 60;
+    const otRounded = otWholeHours + this.roundOtFraction(otRemainMin);
+
     const totals={
-      sales:sum('sales'), cases:sum('cases'), ot:sum('ot'), com:sum('com'),
+      sales:sum('sales'), cases:sum('cases'), ot:otRounded, com:sum('com'),
       avg: workedDays ? sum('sales')/workedDays : 0
     };
     U.setText('sumSales',U.money(totals.sales));
@@ -866,10 +914,20 @@ const Daily = {
     const body=U.$('dailyBody');
     body.addEventListener('input',(e)=>{
       const inp=e.target.closest('input'); if(!inp) return;
-      const i=+inp.closest('tr').dataset.i, f=inp.dataset.f, r=this.rows[i];
-      if (f==='in'||f==='out') r[f]=inp.value; else r[f]=U.num(inp.value);
-      if (f==='ot')  r.otManual  = inp.value.trim()!=='';
-      if (f==='com') r.comManual = inp.value.trim()!=='';
+      const tr=inp.closest('tr');
+      const i=+tr.dataset.i, f=inp.dataset.f, r=this.rows[i];
+      if (f==='in'||f==='out'){
+        r[f]=inp.value;
+      } else if (f==='otH' || f==='otM'){
+        const hInp=tr.querySelector('[data-f="otH"]'), mInp=tr.querySelector('[data-f="otM"]');
+        r.ot = U.num(hInp.value) + U.num(mInp.value)/60;
+        r.otManual = (hInp.value.trim()!=='' || mInp.value.trim()!=='');
+      } else if (f==='com'){
+        r.com = U.num(inp.value);
+        r.comManual = inp.value.trim()!=='';
+      } else {
+        r[f]=U.num(inp.value);
+      }
       this.recalc(i); this.refreshRow(i); this.summary();
       Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
     });
@@ -894,10 +952,13 @@ const Daily = {
   refreshRow(i){
     const r=this.rows[i];
     const tr=U.$$(`#dailyBody tr[data-i="${i}"]`)[0]; if(!tr) return;
-    const ot=tr.querySelector('[data-f="ot"]'), com=tr.querySelector('[data-f="com"]');
-    if (document.activeElement!==ot)  ot.value  = r.ot||'';
+    const otH=tr.querySelector('[data-f="otH"]'), otM=tr.querySelector('[data-f="otM"]'), com=tr.querySelector('[data-f="com"]');
+    const {h,m} = this.splitHoursMinutes(r.ot);
+    if (document.activeElement!==otH) otH.value = h||'';
+    if (document.activeElement!==otM) otM.value = m||'';
     if (document.activeElement!==com) com.value = r.com||'';
-    ot.classList.toggle('is-manual', r.otManual);
+    otH.classList.toggle('is-manual', r.otManual);
+    otM.classList.toggle('is-manual', r.otManual);
     com.classList.toggle('is-manual', r.comManual);
     tr.querySelector('[data-reset]').hidden = !(r.otManual||r.comManual);
   },
