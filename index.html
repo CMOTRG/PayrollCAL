@@ -77,6 +77,9 @@ tfoot td{font-weight:700; background:#0f172a}
 .tier-section-head h4{margin:0; font-size:14.5px; font-weight:600; color:var(--txt); letter-spacing:.2px}
 .tier-section-head h4 .hint{margin-left:4px; font-weight:400}
 .tier-add-btn{width:auto; padding:6px 12px; font-size:12.5px}
+.tier-head-btns{display:flex; gap:8px; flex-wrap:wrap}
+.tier-clear-btn{width:auto; padding:6px 12px; font-size:12.5px}
+.tier-clear-btn:hover{background:rgba(239,68,68,.12); border-color:var(--err); color:var(--err)}
 
 .tier-grid{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-top:10px}
 .tier-item{
@@ -308,7 +311,10 @@ tfoot td{font-weight:700; background:#0f172a}
     <div class="tier-section">
       <div class="tier-section-head">
         <h4>คอมรายวัน <span class="hint">(อิงยอดขายแต่ละวัน)</span></h4>
-        <button type="button" class="btn small secondary tier-add-btn" id="tierDailyAddBtn">+ เพิ่มขั้น</button>
+        <div class="tier-head-btns">
+          <button type="button" class="btn small secondary tier-add-btn" id="tierDailyAddBtn">+ เพิ่มขั้น</button>
+          <button type="button" class="btn small secondary tier-clear-btn" id="tierDailyClearBtn">ล้างค่า</button>
+        </div>
       </div>
       <div class="tier-grid" id="tierDailyBody"></div>
     </div>
@@ -316,7 +322,10 @@ tfoot td{font-weight:700; background:#0f172a}
     <div class="tier-section">
       <div class="tier-section-head">
         <h4>คอมรายเดือน <span class="hint">(อิงยอดขายเฉลี่ย/วัน)</span></h4>
-        <button type="button" class="btn small secondary tier-add-btn" id="tierMonthlyAddBtn">+ เพิ่มขั้น</button>
+        <div class="tier-head-btns">
+          <button type="button" class="btn small secondary tier-add-btn" id="tierMonthlyAddBtn">+ เพิ่มขั้น</button>
+          <button type="button" class="btn small secondary tier-clear-btn" id="tierMonthlyClearBtn">ล้างค่า</button>
+        </div>
       </div>
       <div class="tier-grid" id="tierMonthlyBody"></div>
     </div>
@@ -677,6 +686,12 @@ const Tiers = {
     list.splice(index, 1);
     this.renderTable(bodyId, list);
   },
+  clearAll(bodyId, label){
+    const list = this.readTable(bodyId);
+    if (!list.length) return; // ไม่มีอะไรให้ล้าง
+    if (!confirm(`ล้างขั้นคอม${label}ทั้งหมด (${list.length} รายการ) ใช่หรือไม่?`)) return;
+    this.renderTable(bodyId, []);
+  },
   render(){
     this.renderTable('tierDailyBody', this.data.daily);
     this.renderTable('tierMonthlyBody', this.data.monthly);
@@ -684,6 +699,8 @@ const Tiers = {
   bind(){
     U.$('tierDailyAddBtn').onclick   = () => this.addRow('tierDailyBody');
     U.$('tierMonthlyAddBtn').onclick = () => this.addRow('tierMonthlyBody');
+    U.$('tierDailyClearBtn').onclick   = () => this.clearAll('tierDailyBody', 'รายวัน');
+    U.$('tierMonthlyClearBtn').onclick = () => this.clearAll('tierMonthlyBody', 'รายเดือน');
 
     // ปุ่มลบ (delegated event เพราะจำนวนรายการเปลี่ยนได้ตลอด)
     U.$('tierDailyBody').addEventListener('click', (e)=>{
