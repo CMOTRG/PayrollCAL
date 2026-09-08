@@ -197,6 +197,11 @@ tfoot td{font-weight:700; background:#0f172a}
       <button class="btn small secondary" id="excelCancelBtn">ยกเลิก</button>
     </div>
 
+    <div class="row">
+      <button class="btn small secondary" id="dailyClearBtn" style="color:var(--err); border-color:var(--err)">ล้างค่าทั้งเดือน</button>
+      <span class="hint">ล้างยอดขาย/เคส/เวลาเข้า-ออก/OT/คอม ของทุกวันในเดือนที่กำลังดูอยู่</span>
+    </div>
+
     <div class="tbl-scroll">
       <table>
         <thead>
@@ -880,6 +885,8 @@ const Daily = {
     U.$('excelSheetSelect').addEventListener('change', () => this.loadSelectedSheet());
     U.$('excelApplyBtn').onclick  = () => this.applyExcelImport();
     U.$('excelCancelBtn').onclick = () => this.cancelExcelImport();
+
+    U.$('dailyClearBtn').onclick = () => this.clearMonth();
   },
 
   refreshRow(i){
@@ -905,6 +912,20 @@ const Daily = {
     });
     this.render();
     return filled;
+  },
+
+  /** ล้างข้อมูลยอดขาย/เคส/เวลาเข้า-ออก/OT/คอม ของทุกวันในเดือนที่กำลังดูอยู่ (ถามยืนยันก่อนเสมอ) */
+  clearMonth(){
+    const hasAnyData = this.rows.some(r =>
+      U.num(r.sales)>0 || U.num(r.cases)>0 || U.num(r.ot)>0 || U.num(r.com)>0 || r.in || r.out
+    );
+    if (!hasAnyData) return U.toast('ไม่มีข้อมูลให้ล้างในเดือนนี้','warn');
+    if (!confirm(`ล้างข้อมูลยอดขายรายวันทั้งหมดของเดือน ${App.month} ใช่หรือไม่?\nยอดขาย/เคส/เวลาเข้า-ออก/OT/คอม ของทุกวันจะถูกลบ และไม่สามารถกู้คืนได้`)) return;
+
+    this.init();
+    this.render();
+    Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+    U.toast(`ล้างข้อมูลยอดขายรายวันเดือน ${App.month} แล้ว`, 'ok');
   },
 
   async handleImage(){
