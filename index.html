@@ -74,6 +74,18 @@ tfoot td{font-weight:700; background:#0f172a}
 .role-select{padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:#0f172a; color:var(--txt); font-size:13px;}
 .role-select:disabled{opacity:.6; cursor:not-allowed}
 
+/* ---- Leave tab: wide month-by-month grid ---- */
+table.leave-grid{font-size:12.5px; white-space:nowrap}
+table.leave-grid th, table.leave-grid td{padding:5px 6px}
+table.leave-grid td:first-child, table.leave-grid th:first-child{text-align:left; white-space:normal; min-width:150px}
+table.leave-grid .month-sep{border-left:2px solid var(--line)}
+table.leave-grid input[type="number"]{width:52px; padding:4px; text-align:center}
+table.leave-grid input.leave-carry-input{width:64px}
+table.leave-grid tr.leave-locked{opacity:.45}
+table.leave-grid tr.leave-locked input{pointer-events:none}
+table.leave-grid td.leave-remain{font-variant-numeric:tabular-nums}
+table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
+
 /* ---- Tiers tab: card-grid layout for commission steps ---- */
 .tier-tab h3{margin-bottom:6px}
 .tier-tab > .hint{margin-top:0; margin-bottom:20px}
@@ -349,16 +361,54 @@ tfoot td{font-weight:700; background:#0f172a}
   <!-- ---------- TAB: LEAVE ---------- -->
   <section id="tab-leave" class="tab card hide">
     <h3>วันลา / วันหยุด</h3>
-    <p class="hint" id="leaveQuotaTitle">สิทธิ์วันลา/วันหยุด</p>
-    <div class="tbl-scroll">
-      <table>
-        <thead>
-          <tr><th style="text-align:left">รายการ</th><th>เงื่อนไข</th><th>สิทธิ์ทั้งปี</th><th>ใช้ไปแล้ว</th><th>คงเหลือ</th></tr>
-        </thead>
-        <tbody id="leaveQuotaBody"></tbody>
-      </table>
+
+    <!-- มุมมองส่วนตัว: staff / pharmacist -->
+    <div id="leaveOwnView">
+      <p class="hint" id="leaveQuotaTitle">สิทธิ์วันลา/วันหยุด</p>
+      <p class="hint" id="leaveHireInfo"></p>
+      <div class="tbl-scroll">
+        <table class="leave-grid">
+          <thead>
+            <tr id="leaveHeadRow1">
+              <th rowspan="2" style="text-align:left">รายการ</th>
+              <th rowspan="2">เงื่อนไข</th>
+              <th rowspan="2">สิทธิ์ทั้งปี</th>
+            </tr>
+            <tr id="leaveHeadRow2"></tr>
+          </thead>
+          <tbody id="leaveQuotaBody"></tbody>
+        </table>
+      </div>
+      <p class="hint" id="leaveQuotaNote"></p>
     </div>
-    <p class="hint" id="leaveQuotaNote"></p>
+
+    <!-- มุมมองผู้ดูแลระบบ: รวมวันลาของทุกคนตามเดือนที่เลือก -->
+    <div id="leaveAdminView" class="hide">
+      <p class="hint">ภาพรวมวันลา/วันหยุดของพนักงานและเภสัชกรทุกคน — เลือกปีและเดือนที่ต้องการดู</p>
+      <div class="row">
+        <label class="hint" style="margin:0">ปี</label>
+        <input type="number" id="la_year" style="width:90px" class="role-select">
+        <label class="hint" style="margin:0">เดือน</label>
+        <select id="la_month" class="role-select"></select>
+        <button class="btn small" id="la_loadBtn">โหลดข้อมูล</button>
+      </div>
+
+      <h3 style="margin-top:18px">พนักงาน/ผู้ช่วย</h3>
+      <div class="tbl-scroll">
+        <table class="leave-grid">
+          <thead><tr id="la_staffHead1"></tr><tr id="la_staffHead2"></tr></thead>
+          <tbody id="la_staffBody"></tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:18px">เภสัชกร</h3>
+      <div class="tbl-scroll">
+        <table class="leave-grid">
+          <thead><tr id="la_pharmHead1"></tr><tr id="la_pharmHead2"></tr></thead>
+          <tbody id="la_pharmBody"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
   <!-- ---------- TAB: ADMIN ---------- -->
@@ -373,10 +423,11 @@ tfoot td{font-weight:700; background:#0f172a}
 
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
         <tbody id="userListBody"></tbody>
       </table>
     </div>
+    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วย (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก</p>
 
     <div class="row" style="margin-top:14px">
       <strong>สรุปเงินเดือนรวมรายเดือน</strong>
@@ -438,28 +489,42 @@ const CONFIG = {
     monthly:[500,1000,1500,2000,2500,3000,3500,4000,4500,5000,6000,7000]
   },
 
-  // สิทธิ์วันลา/วันหยุด — คัดลอกมาจากตาราง "สรุปจำนวนวันหยุด" ในไฟล์ Excel คิดเงินเดือนของแต่ละประเภท
-  // เภสัชกรสาขา/เภสัชกรโมบาย ใช้สูตรเดียวกัน (ต่างกันแค่ตำแหน่งในสลิป) จึงยึดตาม "คิดเงินเดือนเภสัช"
-  // พนักงาน/ผู้ช่วย ยึดตาม "คิดเงินเดือนพนักงาน"
+  // สิทธิ์วันลา/วันหยุด — คัดลอกมาจากไฟล์ Excel "คำนวณวันหยุด.xlsx" (แผ่นงาน staff / pharmacist) ตรงตัว
+  // accum_holiday: วันหยุดสะสมข้ามปี — ไม่ใช่โควตาคงที่ ผู้ใช้กรอก "จำนวน (วัน)" เองทุกปี (เพดานดู carryCap)
+  // tenureYear (เฉพาะ staff): สิทธิ์ประเภทนี้เริ่มนับตั้งแต่ปีที่ทำงานครบปีที่ N (1 = ผ่านทดลองงาน/ปีแรก)
+  //   ปีที่ N นี้เองที่ใช้ตาราง LEAVE_PRORATE_STAFF (ตามเดือนที่เริ่มงาน) มา prorate ให้ ส่วนปีถัดจากนั้นได้เต็มโควตา
+  //   เภสัชกรไม่มีเงื่อนไขอายุงาน/ไม่ prorate — ได้โควตาเต็มทุกปี (ดูหัวตารางแผ่นงาน "เกณฑ์" ที่ระบุเฉพาะ "ผู้ช่วยเภสัชและพนักงาน" คือ role staff)
   LEAVE_RULES: {
     pharmacist: [
-      { key:'accum_holiday',           label:'วันหยุดสะสมนักขัต',                 cond:'-', quota:null },
-      { key:'public_holiday',          label:'วันหยุดนักขัต',                     cond:'-', quota:13 },
-      { key:'personal_sick_vacation',  label:'ลากิจ / ป่วยไม่มีใบ / พักผ่อน',      cond:'-', quota:10 },
-      { key:'sick_with_doc',           label:'ลาป่วยมีใบ',                        cond:'-', quota:10 }
+      { key:'accum_holiday',      label:'วันหยุดสะสมจากปีก่อนหน้า', cond:'สะสมสูงสุดไม่เกิน 7 วัน', quota:null, carryCap:7 },
+      { key:'sick_with_doc',      label:'ลาป่วย (มีใบ)',            cond:'-', quota:10 },
+      { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'-', quota:13 },
+      { key:'personal_vacation',  label:'วันลากิจ พักผ่อน',         cond:'-', quota:10 }
     ],
     staff: [
-      { key:'accum_holiday', label:'วันหยุดสะสม',          cond:'ไม่เกิน 6 วัน',   quota:null },
-      { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',         cond:'ผ่านทดลองงาน',   quota:10 },
-      { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',      cond:'เข้าปีที่ 2',     quota:5 },
-      { key:'personal',      label:'ลากิจ',                cond:'เข้าปีที่ 3',     quota:5 },
-      { key:'marriage',      label:'ลาสมรส',               cond:'เข้าปีที่ 3',     quota:3 },
-      { key:'vacation',      label:'ลาพักผ่อน',            cond:'เข้าปีที่ 4',     quota:3 },
-      { key:'maternity',     label:'ลาคลอด',               cond:'เข้าปีที่ 4',     quota:'1 เดือน' },
-      { key:'ordination',    label:'ลาอุปสมบท',            cond:'เข้าปีที่ 4',     quota:7 },
-      { key:'funeral',       label:'ลาจัดการงานศพ',        cond:'ผ่านทดลองงาน',   quota:3 }
+      { key:'accum_holiday', label:'วันหยุดสะสมจากปีก่อนหน้า', cond:'ไม่เกิน 6 วัน',   quota:null, carryCap:6 },
+      { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',            cond:'ผ่านทดลองงาน',   quota:10, tenureYear:1 },
+      { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',         cond:'เข้าปีที่ 2',     quota:5,  tenureYear:2 },
+      { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
+      { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3 },
+      { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4',     quota:3,  tenureYear:4 },
+      { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4 },
+      { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4 },
+      { key:'funeral',       label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ]
-  }
+  },
+
+  // แผ่นงาน "เกณฑ์" — จำนวนวันลาตามสิทธิ์ในปีที่เพิ่ง "ครบเงื่อนไข tenureYear" ของแต่ละประเภท
+  // ดัชนีตาม "เดือนที่เริ่มงาน" (1=ม.ค. ... 12=ธ.ค.) เฉพาะ staff เท่านั้น — ประเภทที่ไม่มีในนี้ (maternity/ordination/marriage/funeral)
+  // แปลว่า Excel เว้นว่างไว้ = ได้เต็มโควตาในปีที่ครบเงื่อนไขเลย ไม่ต้อง prorate
+  LEAVE_PRORATE_STAFF: {
+    sick_with_doc: [10,10,9,8,7,6,5,5,4,3,2,1],
+    sick_no_doc:   [5,5,4,4,4,3,3,2,2,2,1,1],
+    personal:      [5,5,5,4,4,3,3,2,2,2,1,1],
+    vacation:      [3,3,3,3,2,2,2,2,1,1,1,1]
+  },
+
+  MONTH_LABELS_TH: ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 };
 
 /* ---------- [2] UTILS ------------------------------------
@@ -1341,67 +1406,232 @@ const Salary = {
 };
 
 /* ---------- [11] LEAVE ---------------------------------------
- * สิทธิ์วันลา/วันหยุด แยกตามประเภทผู้ใช้ (CONFIG.LEAVE_RULES) เหมือนเดิม
- * เปลี่ยนจากการบันทึกทีละรายการ (วันที่/ประเภท/จำนวนวัน) เป็นให้ผู้ใช้กรอกจำนวน
- * "ใช้ไปแล้ว" ของแต่ละประเภทตรงๆ ในตาราง — เก็บเป็น { [ruleKey]: usedDays }
- * ผูก user_id + ปี (key เช่น 'leaveUsed:2026') เพื่อให้สิทธิ์รีเซ็ตใหม่ทุกปีเหมือนเดิม
- * "คงเหลือ" คำนวณสดจาก quota - used ที่กรอก (อัปเดตทันทีตอนพิมพ์ ไม่ต้องกดบันทึก)
+ * ตารางวันลา/วันหยุดรายเดือนเต็มปี ตามโครงสร้างไฟล์ Excel "คำนวณวันหยุด.xlsx"
+ * (แผ่นงาน staff / pharmacist / แอดมิน / เกณฑ์) — ดูที่มาของกฎทั้งหมดใน CONFIG.LEAVE_RULES
+ *
+ * โมเดลข้อมูล (เก็บผ่าน Store.setUser แถวของเจ้าของเอง เหมือน daily/tiers เดิม):
+ *   startDate           : { date:'YYYY-MM-DD' }   — แก้ได้เฉพาะ admin (action 'set-start-date')
+ *   leaveCarry:{year}   : { days:N }               — วันหยุดสะสมข้ามปี เจ้าของกรอกเอง (เพดานดู carryCap)
+ *   leaveUsed:{year}    : { [ruleKey]: [u1..u12] } — ใช้วันลาแต่ละเดือน เจ้าของกรอกเอง
+ *
+ * LeaveCalc.build() คำนวณ "สิทธิ์ทั้งปี" + "คงเหลือสะสม" ของแต่ละเดือนจากสามค่านี้ ใช้ร่วมกันทั้ง
+ * มุมมองส่วนตัว (Leave) และมุมมองแอดมิน (AdminLeave ผ่าน action 'leave-summary' ที่ดึงของทุกคนมา)
  * ----------------------------------------------------------*/
-const Leave = {
-  usedMap: {},
-  year: new Date().getFullYear(),
-
-  rulesForRole(){
-    return CURRENT_ROLE === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+const LeaveCalc = {
+  /** "YYYY-MM-DD" -> {y,m} (m: 1-12) หรือ null ถ้าแปลงไม่ได้/ยังไม่ตั้งค่า */
+  parseDate(str){
+    const m = String(str||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? { y:+m[1], m:+m[2] } : null;
   },
+
+  /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน (locked) */
+  effectiveQuota(rule, role, hireYm, year, carryDays){
+    if (rule.key === 'accum_holiday'){
+      return Math.max(0, Math.min(U.num(carryDays), rule.carryCap ?? 0));
+    }
+    if (role !== 'staff' || !rule.tenureYear) return rule.quota; // เภสัชกร/ไม่มีเงื่อนไขอายุงาน -> เต็มทุกปี
+    if (!hireYm) return rule.quota; // ยังไม่มีวันที่เริ่มงานให้อ้างอิง -> ให้สิทธิ์เต็มไปก่อน กันข้อมูลยังไม่ครบ
+
+    const unlockYear = hireYm.y + (rule.tenureYear - 1);
+    if (year < unlockYear) return null;        // ยังไม่ถึงปีที่ครบเงื่อนไข
+    if (year > unlockYear) return rule.quota;   // ผ่านปีที่ครบเงื่อนไขมาแล้ว -> เต็มโควตาทุกปีถัดไป
+    const prorate = CONFIG.LEAVE_PRORATE_STAFF[rule.key];
+    return prorate ? prorate[hireYm.m - 1] : rule.quota; // ปีที่เพิ่งครบเงื่อนไข -> prorate ตามเดือนเริ่มงาน (ถ้ามีตาราง)
+  },
+
+  /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ */
+  build(role, hireDateStr, carryDays, usedMap, year){
+    const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+    const hireYm = this.parseDate(hireDateStr);
+    const data = {};
+    rules.forEach(rule=>{
+      const q = this.effectiveQuota(rule, role, hireYm, year, carryDays);
+      const locked = q === null;
+      const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
+      const remain = []; let running = locked ? 0 : q;
+      for (let i=0;i<12;i++){ running -= used[i]; remain.push(running); }
+      data[rule.key] = { quota: locked?0:q, used, remain, locked };
+    });
+    return { rules, hireYm, data };
+  },
+
+  /** สร้างแถว thead ทั้งสองแถว (เดือน + ใช้วันลา/คงเหลือ) เป็น innerHTML ของ 2 <tr> */
+  monthHeadHtml(){
+    const row1 = CONFIG.MONTH_LABELS_TH.map(m=>`<th colspan="2" class="month-sep">${m}</th>`).join('');
+    const row2 = CONFIG.MONTH_LABELS_TH.map(()=>`<th class="month-sep">ใช้</th><th>คงเหลือ</th>`).join('');
+    return { row1, row2 };
+  }
+};
+
+const Leave = {
+  year: new Date().getFullYear(),
+  hireDate: '',
+  carryDays: 0,
+  usedMap: {},
 
   async load(){
     this.year = new Date().getFullYear();
+    const start = await Store.getUser('startDate', null);
+    this.hireDate = start?.date || '';
+    const carry = await Store.getUser(`leaveCarry:${this.year}`, null);
+    this.carryDays = U.num(carry?.days);
     this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
     this.render();
   },
 
-  saveUsed: U.debounce(()=>{
-    Store.setUser(`leaveUsed:${Leave.year}`, Leave.usedMap).catch(()=>{});
-  }, 500),
+  saveCarry: U.debounce(()=>{ Store.setUser(`leaveCarry:${Leave.year}`, { days:Leave.carryDays }).catch(()=>{}); }, 500),
+  saveUsed:  U.debounce(()=>{ Store.setUser(`leaveUsed:${Leave.year}`, Leave.usedMap).catch(()=>{}); }, 500),
 
-  renderQuota(){
-    const rules=this.rulesForRole(), year=this.year;
-    U.setText('leaveQuotaTitle', CURRENT_ROLE==='pharmacist'
-      ? 'สิทธิ์วันลา/วันหยุด — เภสัชกรสาขา/เภสัชกรโมบาย'
-      : 'สิทธิ์วันลา/วันหยุด — พนักงาน/ผู้ช่วย');
-    U.$('leaveQuotaBody').innerHTML = rules.map(r=>{
-      const used = U.num(this.usedMap[r.key]) || 0;
-      const remain = (typeof r.quota === 'number') ? (r.quota-used) : '-';
-      return `<tr>
-        <td style="text-align:left">${r.label}</td>
-        <td>${r.cond}</td>
-        <td>${r.quota==null?'-':r.quota}</td>
-        <td><input type="number" class="leave-used-input" data-key="${r.key}" min="0" step="0.5" value="${used||0}"></td>
-        <td data-remain-for="${r.key}">${remain}</td>
+  render(){
+    const isAdmin = CURRENT_ROLE === 'admin';
+    U.$('leaveOwnView').classList.toggle('hide', isAdmin);
+    U.$('leaveAdminView').classList.toggle('hide', !isAdmin);
+    if (isAdmin){ AdminLeave.ensureLoaded(); return; }
+
+    const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
+    const { row1, row2 } = LeaveCalc.monthHeadHtml();
+    U.$('leaveHeadRow1').innerHTML =
+      `<th rowspan="2" style="text-align:left">รายการ</th><th rowspan="2">เงื่อนไข</th><th rowspan="2">สิทธิ์ทั้งปี</th>` + row1;
+    U.$('leaveHeadRow2').innerHTML = row2;
+
+    U.setText('leaveQuotaTitle', role==='pharmacist'
+      ? `สิทธิ์วันลา/วันหยุด ปี ${this.year} — เภสัชกรสาขา/เภสัชกรโมบาย`
+      : `สิทธิ์วันลา/วันหยุด ปี ${this.year} — พนักงาน/ผู้ช่วย`);
+    U.setText('leaveHireInfo', this.hireDate
+      ? `วันที่เริ่มงาน: ${this.formatDate(this.hireDate)} (แก้ไขได้โดยผู้ดูแลระบบเท่านั้น)`
+      : 'ยังไม่ได้ตั้งค่าวันที่เริ่มงาน — ติดต่อผู้ดูแลระบบเพื่อกรอกข้อมูล (มีผลต่อสิทธิ์วันลาที่ผูกอายุงาน)');
+
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year);
+    U.$('leaveQuotaBody').innerHTML = built.rules.map(rule=>{
+      const d = built.data[rule.key];
+      const quotaCell = rule.key === 'accum_holiday'
+        ? `<input type="number" class="leave-carry-input" min="0" max="${rule.carryCap}" step="1" value="${this.carryDays||0}">`
+        : (d.locked ? '-' : d.quota);
+      const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
+        const remain = d.remain[i];
+        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" value="${d.used[i]||''}"></td>
+                <td class="leave-remain${remain<0?' neg':''}" data-remain-key="${rule.key}" data-remain-m="${i}">${remain}</td>`;
+      }).join('');
+      return `<tr class="${d.locked?'leave-locked':''}" data-rule="${rule.key}">
+        <td>${rule.label}</td>
+        <td>${rule.cond}</td>
+        <td data-quota-for="${rule.key}">${quotaCell}</td>
+        ${months}
       </tr>`;
     }).join('');
-    U.setText('leaveQuotaNote', CURRENT_ROLE==='pharmacist'
-      ? `สิทธิ์ปี ${year} — *สะสม 3 รายการแรก (วันหยุดสะสมนักขัต / วันหยุดนักขัต / ลากิจฯ) ข้ามปีได้ไม่เกิน 7 วัน`
-      : `สิทธิ์ปี ${year} ตามเงื่อนไขอายุงานที่ระบุในแต่ละแถว`);
+
+    U.setText('leaveQuotaNote', role==='pharmacist'
+      ? `สิทธิ์ปี ${this.year} รีเซ็ตเต็มทุกปี (ไม่มีเงื่อนไขอายุงาน) — แถวสีจางหมายถึงยังไม่ถึงเกณฑ์`
+      : `สิทธิ์ปี ${this.year} ตามเงื่อนไขอายุงานในแต่ละแถว — แถวสีจาง (ยังไม่ถึงเกณฑ์) จะปลดล็อกอัตโนมัติเมื่อครบปีตามวันที่เริ่มงาน`);
   },
 
-  render(){ this.renderQuota(); },
+  formatDate(str){
+    const p = LeaveCalc.parseDate(str);
+    return p ? `${String(str).slice(8,10)}/${String(p.m).padStart(2,'0')}/${p.y}` : str;
+  },
 
   bind(){
-    U.$('leaveQuotaBody').addEventListener('input', (e)=>{
-      const inp=e.target.closest('.leave-used-input'); if(!inp) return;
-      const key=inp.dataset.key;
-      const used=U.num(inp.value);
-      this.usedMap[key]=used;
-
-      const rule=this.rulesForRole().find(r=>r.key===key);
-      const remainCell=U.$$(`[data-remain-for="${key}"]`)[0];
-      if (remainCell && rule){
-        remainCell.textContent = (typeof rule.quota==='number') ? (rule.quota-used) : '-';
+    U.$('leaveOwnView').addEventListener('input', (e)=>{
+      const carryInp = e.target.closest('.leave-carry-input');
+      if (carryInp){
+        const rule = Leave.rulesForRoleAccum();
+        this.carryDays = Math.max(0, Math.min(U.num(carryInp.value), rule.carryCap ?? 0));
+        carryInp.value = this.carryDays;
+        this.saveCarry();
+        this.recalcAndRepaint();
+        return;
       }
-      this.saveUsed();
+      const usedInp = e.target.closest('.leave-used-input');
+      if (usedInp){
+        const key = usedInp.dataset.key, m = +usedInp.dataset.m;
+        if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(0);
+        this.usedMap[key][m] = U.num(usedInp.value);
+        this.saveUsed();
+        this.recalcAndRepaint();
+      }
     });
+  },
+
+  rulesForRoleAccum(){
+    const rules = CURRENT_ROLE==='pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+    return rules.find(r=>r.key==='accum_holiday');
+  },
+
+  /** อัปเดตแค่คอลัมน์ "คงเหลือ" สดๆ ตอนพิมพ์ ไม่ต้อง render ตารางใหม่ทั้งหมด */
+  recalcAndRepaint(){
+    const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year);
+    built.rules.forEach(rule=>{
+      const d = built.data[rule.key];
+      for (let i=0;i<12;i++){
+        const cell = document.querySelector(`[data-remain-key="${rule.key}"][data-remain-m="${i}"]`);
+        if (cell){ cell.textContent = d.remain[i]; cell.classList.toggle('neg', d.remain[i]<0); }
+      }
+    });
+  }
+};
+
+/* ---------- [11b] ADMIN LEAVE (มุมมองแอดมิน) -------------------
+ * ดึงข้อมูลวันลาของ "ทุกคน" ผ่าน Edge Function action 'leave-summary' (service role ข้าม RLS)
+ * แล้วใช้ LeaveCalc.build() ตัวเดียวกับหน้า Leave ส่วนตัว คำนวณให้ทุกคน จากนั้นเลือกแสดงแค่เดือนที่เลือก
+ * ----------------------------------------------------------*/
+const AdminLeave = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth() + 1, // 1-12
+  rows: [],
+  _loaded: false,
+
+  bindControls(){
+    U.$('la_year').value = this.year;
+    U.$('la_month').innerHTML = CONFIG.MONTH_LABELS_TH.map((m,i)=>`<option value="${i+1}" ${i+1===this.month?'selected':''}>${m}</option>`).join('');
+    U.$('la_loadBtn').onclick = () => { this.year = U.num(U.$('la_year').value)||this.year; this.month = +U.$('la_month').value; this.load(); };
+    U.$('la_month').onchange = () => { this.month = +U.$('la_month').value; this.renderTables(); };
+  },
+
+  ensureLoaded(){ if (!this._loaded) this.load(); },
+
+  async load(){
+    try{
+      this.rows = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(this.year) } });
+      this._loaded = true;
+      this.renderTables();
+    }catch(err){ U.toast('โหลดข้อมูลวันลาไม่สำเร็จ: '+err.message, 'error'); }
+  },
+
+  renderGroup(role, head1Id, head2Id, bodyId){
+    const rules = role==='pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+    const people = this.rows.filter(r=>r.role===role);
+
+    U.$(head1Id).innerHTML = '<th rowspan="2" style="text-align:left">ชื่อ</th><th rowspan="2">วันที่เริ่มงาน</th>' +
+      rules.map(r=>`<th colspan="2" class="month-sep">${r.label}</th>`).join('');
+    U.$(head2Id).innerHTML = rules.map(()=>`<th class="month-sep">ใช้</th><th>คงเหลือ</th>`).join('');
+
+    if (!people.length){
+      U.$(bodyId).innerHTML = `<tr><td colspan="${2+rules.length*2}" class="hint" style="text-align:center">ไม่มีข้อมูล</td></tr>`;
+      return;
+    }
+
+    const mi = this.month - 1;
+    U.$(bodyId).innerHTML = people.map(p=>{
+      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year);
+      const cells = rules.map(r=>{
+        const d = built.data[r.key];
+        if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
+        const used = d.used[mi] || 0;
+        const remain = d.remain[mi];
+        return `<td class="month-sep">${used}</td><td class="leave-remain${remain<0?' neg':''}">${remain}</td>`;
+      }).join('');
+      return `<tr>
+        <td>${p.full_name||'-'}</td>
+        <td>${p.start_date ? Leave.formatDate(p.start_date) : '-'}</td>
+        ${cells}
+      </tr>`;
+    }).join('');
+  },
+
+  renderTables(){
+    this.renderGroup('staff', 'la_staffHead1', 'la_staffHead2', 'la_staffBody');
+    this.renderGroup('pharmacist', 'la_pharmHead1', 'la_pharmHead2', 'la_pharmBody');
   }
 };
 
@@ -1426,6 +1656,7 @@ const Admin = {
             </select>`;
         return `<tr>
           <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${roleCell}</td>
+          <td><input type="date" class="start-date-input" data-start-user="${u.id}" data-prev="${u.start_date||''}" value="${u.start_date||''}"></td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
         </tr>`;
       }).join('');
@@ -1451,6 +1682,23 @@ const Admin = {
         await callFn(CONFIG.ADMIN_FN, { action:'reset-password', payload:{ user_id:btn.dataset.resetUser, new_password:newPass } });
         U.toast('รีเซ็ตรหัสผ่านสำเร็จ','ok');
       }catch(err){ U.toast(err.message,'error'); }
+    });
+
+    // แก้ไข "วันที่เริ่มงาน" ของพนักงานคนใดก็ได้ — เขียนผ่าน service role เท่านั้น (ไม่ใช่แถวของแอดมินเอง)
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const dateInp=e.target.closest('.start-date-input'); if(!dateInp) return;
+      const userId=dateInp.dataset.startUser;
+      const prev=dateInp.dataset.prev;
+      const date=dateInp.value;
+      if (date===prev) return;
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-start-date', payload:{ user_id:userId, date } });
+        dateInp.dataset.prev = date;
+        U.toast('บันทึกวันที่เริ่มงานแล้ว','ok');
+      }catch(err){
+        dateInp.value = prev;
+        U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
+      }
     });
 
     // เปลี่ยนบทบาทสมาชิก — ยืนยันก่อนทุกครั้งเพราะกระทบสิทธิ์การเข้าถึงของผู้ใช้คนนั้นทันที
@@ -1642,6 +1890,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Salary.bind();
   Tiers.bind();
   Leave.bind();
+  AdminLeave.bindControls();
   Admin.bind();
   Export.bind();
 
