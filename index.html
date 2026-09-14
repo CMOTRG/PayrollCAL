@@ -366,6 +366,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
     <div id="leaveOwnView">
       <p class="hint" id="leaveQuotaTitle">สิทธิ์วันลา/วันหยุด</p>
       <p class="hint" id="leaveHireInfo"></p>
+      <p class="hint" id="leaveGenderInfo"></p>
       <div class="tbl-scroll">
         <table class="leave-grid">
           <thead>
@@ -423,11 +424,11 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
         <tbody id="userListBody"></tbody>
       </table>
     </div>
-    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วย (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก</p>
+    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วย (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก / เพศมีผลต่อการแสดงสิทธิ์ลาคลอด (หญิง) และลาอุปสมบท (ชาย) ของพนักงาน/ผู้ช่วย — เลือกแล้วบันทึกทันที</p>
 
     <div class="row" style="margin-top:14px">
       <strong>สรุปเงินเดือนรวมรายเดือน</strong>
@@ -508,8 +509,8 @@ const CONFIG = {
       { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
       { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3 },
       { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4',     quota:3,  tenureYear:4 },
-      { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4 },
-      { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4 },
+      { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
+      { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male' },
       { key:'funeral',       label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ]
   },
@@ -1424,8 +1425,11 @@ const LeaveCalc = {
     return m ? { y:+m[1], m:+m[2] } : null;
   },
 
-  /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน (locked) */
-  effectiveQuota(rule, role, hireYm, year, carryDays){
+  /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน หรือเพศไม่ตรงกับ rule (locked) */
+  effectiveQuota(rule, role, hireYm, year, carryDays, gender){
+    // สิทธิ์เฉพาะเพศ (ลาคลอด=หญิง, ลาอุปสมบท=ชาย) — ซ่อน/ล็อกถ้ารู้เพศแล้วแต่ไม่ตรง
+    // ถ้ายังไม่ตั้งค่าเพศไว้ (gender ว่าง) ให้แสดงตามปกติไปก่อน กันข้อมูลยังไม่ครบ
+    if (rule.genderOnly && gender && gender !== rule.genderOnly) return null;
     if (rule.key === 'accum_holiday'){
       return Math.max(0, Math.min(U.num(carryDays), rule.carryCap ?? 0));
     }
@@ -1440,12 +1444,12 @@ const LeaveCalc = {
   },
 
   /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ */
-  build(role, hireDateStr, carryDays, usedMap, year){
+  build(role, hireDateStr, carryDays, usedMap, year, gender){
     const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
     const hireYm = this.parseDate(hireDateStr);
     const data = {};
     rules.forEach(rule=>{
-      const q = this.effectiveQuota(rule, role, hireYm, year, carryDays);
+      const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender);
       const locked = q === null;
       const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
       const remain = []; let running = locked ? 0 : q;
@@ -1466,13 +1470,17 @@ const LeaveCalc = {
 const Leave = {
   year: new Date().getFullYear(),
   hireDate: '',
+  gender: '',
   carryDays: 0,
   usedMap: {},
+  GENDER_LABEL: { male:'ชาย', female:'หญิง' },
 
   async load(){
     this.year = new Date().getFullYear();
     const start = await Store.getUser('startDate', null);
     this.hireDate = start?.date || '';
+    const g = await Store.getUser('gender', null);
+    this.gender = g?.value || '';
     const carry = await Store.getUser(`leaveCarry:${this.year}`, null);
     this.carryDays = U.num(carry?.days);
     this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
@@ -1500,8 +1508,15 @@ const Leave = {
     U.setText('leaveHireInfo', this.hireDate
       ? `วันที่เริ่มงาน: ${this.formatDate(this.hireDate)} (แก้ไขได้โดยผู้ดูแลระบบเท่านั้น)`
       : 'ยังไม่ได้ตั้งค่าวันที่เริ่มงาน — ติดต่อผู้ดูแลระบบเพื่อกรอกข้อมูล (มีผลต่อสิทธิ์วันลาที่ผูกอายุงาน)');
+    if (U.$('leaveGenderInfo')){
+      U.setText('leaveGenderInfo', role==='staff'
+        ? (this.gender
+            ? `เพศ: ${this.GENDER_LABEL[this.gender]||this.gender} (แก้ไขได้โดยผู้ดูแลระบบเท่านั้น — มีผลต่อสิทธิ์ลาคลอด/ลาอุปสมบท)`
+            : 'ยังไม่ได้ตั้งค่าเพศ — ติดต่อผู้ดูแลระบบเพื่อกรอกข้อมูล (มีผลต่อสิทธิ์ลาคลอด/ลาอุปสมบท)')
+        : '');
+    }
 
-    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year);
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender);
     U.$('leaveQuotaBody').innerHTML = built.rules.map(rule=>{
       const d = built.data[rule.key];
       const quotaCell = rule.key === 'accum_holiday'
@@ -1560,7 +1575,7 @@ const Leave = {
   /** อัปเดตแค่คอลัมน์ "คงเหลือ" สดๆ ตอนพิมพ์ ไม่ต้อง render ตารางใหม่ทั้งหมด */
   recalcAndRepaint(){
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
-    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year);
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender);
     built.rules.forEach(rule=>{
       const d = built.data[rule.key];
       for (let i=0;i<12;i++){
@@ -1601,19 +1616,23 @@ const AdminLeave = {
   renderGroup(role, head1Id, head2Id, bodyId){
     const rules = role==='pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
     const people = this.rows.filter(r=>r.role===role);
+    const showGender = role === 'staff'; // เพศมีผลเฉพาะสิทธิ์ของ staff (ลาคลอด/ลาอุปสมบท)
+    const genderTh = showGender ? '<th rowspan="2">เพศ</th>' : '';
+    const baseCols = showGender ? 3 : 2;
 
-    U.$(head1Id).innerHTML = '<th rowspan="2" style="text-align:left">ชื่อ</th><th rowspan="2">วันที่เริ่มงาน</th>' +
+    U.$(head1Id).innerHTML = '<th rowspan="2" style="text-align:left">ชื่อ</th>' + genderTh + '<th rowspan="2">วันที่เริ่มงาน</th>' +
       rules.map(r=>`<th colspan="2" class="month-sep">${r.label}</th>`).join('');
     U.$(head2Id).innerHTML = rules.map(()=>`<th class="month-sep">ใช้</th><th>คงเหลือ</th>`).join('');
 
     if (!people.length){
-      U.$(bodyId).innerHTML = `<tr><td colspan="${2+rules.length*2}" class="hint" style="text-align:center">ไม่มีข้อมูล</td></tr>`;
+      U.$(bodyId).innerHTML = `<tr><td colspan="${baseCols+rules.length*2}" class="hint" style="text-align:center">ไม่มีข้อมูล</td></tr>`;
       return;
     }
 
     const mi = this.month - 1;
     U.$(bodyId).innerHTML = people.map(p=>{
-      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year);
+      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year, p.gender);
+      const genderTd = showGender ? `<td>${Admin.GENDER_LABEL[p.gender]||'-'}</td>` : '';
       const cells = rules.map(r=>{
         const d = built.data[r.key];
         if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
@@ -1623,6 +1642,7 @@ const AdminLeave = {
       }).join('');
       return `<tr>
         <td>${p.full_name||'-'}</td>
+        ${genderTd}
         <td>${p.start_date ? Leave.formatDate(p.start_date) : '-'}</td>
         ${cells}
       </tr>`;
@@ -1641,6 +1661,7 @@ const AdminLeave = {
  * ----------------------------------------------------------*/
 const Admin = {
   ROLE_LABEL: { pharmacist:'เภสัชกรสาขา', staff:'พนักงาน/ผู้ช่วย', admin:'ผู้ดูแลระบบ' },
+  GENDER_LABEL: { male:'ชาย', female:'หญิง' },
 
   async loadUsers(){
     try{
@@ -1654,8 +1675,14 @@ const Admin = {
                 `<option value="${r}" ${r===u.role?'selected':''}>${this.ROLE_LABEL[r]}</option>`
               ).join('')}
             </select>`;
+        const genderCell = `<select class="gender-select" data-gender-user="${u.id}" data-prev="${u.gender||''}">
+              <option value="" ${!u.gender?'selected':''}>-</option>
+              <option value="male" ${u.gender==='male'?'selected':''}>ชาย</option>
+              <option value="female" ${u.gender==='female'?'selected':''}>หญิง</option>
+            </select>`;
         return `<tr>
           <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${roleCell}</td>
+          <td>${genderCell}</td>
           <td><input type="date" class="start-date-input" data-start-user="${u.id}" data-prev="${u.start_date||''}" value="${u.start_date||''}"></td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
         </tr>`;
@@ -1697,6 +1724,23 @@ const Admin = {
         U.toast('บันทึกวันที่เริ่มงานแล้ว','ok');
       }catch(err){
         dateInp.value = prev;
+        U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
+      }
+    });
+
+    // ตั้งค่า "เพศ" ของพนักงานคนใดก็ได้ — เขียนผ่าน service role เท่านั้น (มีผลต่อสิทธิ์ลาคลอด/ลาอุปสมบท)
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const genderSel=e.target.closest('.gender-select'); if(!genderSel) return;
+      const userId=genderSel.dataset.genderUser;
+      const prev=genderSel.dataset.prev;
+      const gender=genderSel.value;
+      if (gender===prev) return;
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-gender', payload:{ user_id:userId, gender } });
+        genderSel.dataset.prev = gender;
+        U.toast('บันทึกเพศแล้ว','ok');
+      }catch(err){
+        genderSel.value = prev;
         U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
       }
     });
