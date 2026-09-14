@@ -1858,11 +1858,19 @@ const App = {
     U.$$('#tabNav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
     U.$$('.tab').forEach(s=>s.classList.add('hide'));
     U.$(`tab-${name}`)?.classList.remove('hide');
+    try{ localStorage.setItem('lastTab', name); }catch(_){}
   },
+  // จำแท็บล่าสุดที่เปิดไว้ (localStorage) กันปัญหารีเฟรชแล้วกระโดดกลับไปแท็บแรกของ role ทุกครั้ง
+  // ใช้ได้เฉพาะแท็บที่มองเห็นได้จริงสำหรับ role ปัจจุบัน (เช็คจากคลาส hide ที่ applyRoleVisibility ตั้งไว้ก่อนแล้ว)
+  // ไม่งั้นจะโดนดักไปเปิดแท็บที่ role นี้ไม่มีสิทธิ์เห็น
   openDefaultTab(){
     const role=CURRENT_ROLE;
-    const first = role==='pharmacist' ? 'daily' : role==='staff' ? 'staff' : 'admin';
-    this.showTab(first);
+    const fallback = role==='pharmacist' ? 'daily' : role==='staff' ? 'staff' : 'admin';
+    let saved = null;
+    try{ saved = localStorage.getItem('lastTab'); }catch(_){}
+    const btn = saved && U.$$('#tabNav button').find(b=>b.dataset.tab===saved);
+    const visible = btn && !btn.classList.contains('hide');
+    this.showTab(visible ? saved : fallback);
   },
 
   bindMonthPicker(){
