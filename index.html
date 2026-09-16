@@ -282,6 +282,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
           <tr>
             <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
             <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม. : นาที)</th>
+            <th class="pmobile-only">สาขา</th>
             <th>คอมรายวัน</th><th></th>
           </tr>
         </thead>
@@ -292,6 +293,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
             <th id="sumSales">0</th><th id="sumCases">0</th>
             <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span></th>
             <th id="sumOt">0.00</th>
+            <th class="pmobile-only"></th>
             <th id="sumCom">0.00</th><th></th>
           </tr>
         </tfoot>
@@ -389,6 +391,19 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 
     <div class="tier-section">
       <div class="tier-section-head">
+        <h4>ประเภทเภสัชกร</h4>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <select id="pharmTypeSelect" class="role-select">
+          <option value="branch">เภสัชกรสาขา (ใช้ตารางคอมรายวันของตัวเองด้านล่าง)</option>
+          <option value="mobile">เภสัชกรโมบาย (ค่าคอมรายวันยึดตามสาขาที่ปฏิบัติงาน — แอดมินเป็นผู้ตั้งเรท)</option>
+        </select>
+      </div>
+      <p class="hint" id="pharmTypeHint" style="margin-top:6px"></p>
+    </div>
+
+    <div class="tier-section" id="tierDailySection">
+      <div class="tier-section-head">
         <h4>คอมรายวัน <span class="hint">(อิงยอดขายแต่ละวัน)</span></h4>
         <div class="tier-head-btns">
           <button type="button" class="btn small secondary tier-add-btn" id="tierDailyAddBtn">+ เพิ่มขั้น</button>
@@ -482,7 +497,20 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
         <tbody id="userListBody"></tbody>
       </table>
     </div>
-    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วยและเภสัชกร (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก / เพศมีผลต่อการแสดงสิทธิ์ลาคลอด (หญิง) และลาอุปสมบท (ชาย) ของพนักงาน/ผู้ช่วยและเภสัชกร — เลือกแล้วบันทึกทันที</p>
+    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วยและเภสัชกร (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก / เพศมีผลต่อการแสดงสิทธิ์ลาคลอด (หญิง) และลาอุปสมบท (ชาย) ของพนักงาน/ผู้ช่วยและเภสัชกร — เลือกแล้วบันทึกทันที / ประเภทเภสัชกร (สาขา/โมบาย) แต่ละคนตั้งเองที่แท็บ "ตั้งค่าคอมมิชชั่น"</p>
+
+    <div class="tier-section" style="margin-top:14px">
+      <div class="tier-section-head">
+        <h4>ค่าคอมรายวันตามสาขา <span class="hint">(สำหรับเภสัชโมบาย — แต่ละสาขาตั้งขั้นอิสระ)</span></h4>
+      </div>
+      <div class="row" id="branchPickerRow" style="margin-bottom:10px"></div>
+      <div class="tier-head-btns" style="margin-bottom:8px">
+        <button type="button" class="btn small secondary tier-add-btn" id="branchTierAddBtn">+ เพิ่มขั้น</button>
+        <button type="button" class="btn small secondary tier-clear-btn" id="branchTierClearBtn">ล้างค่า</button>
+      </div>
+      <div class="tier-grid" id="branchTierBody"></div>
+      <button class="btn small" id="branchTierSaveBtn" style="width:auto; margin-top:12px">บันทึกค่าคอมสาขานี้</button>
+    </div>
 
     <div class="row" style="margin-top:14px">
       <strong>สรุปเงินเดือนรวมรายเดือน</strong>
@@ -545,6 +573,10 @@ const CONFIG = {
     daily:  [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000],
     monthly:[500,1000,1500,2000,2500,3000,3500,4000,4500,5000,6000,7000]
   },
+
+  // เภสัชโมบาย: ค่าคอมรายวันยึดตามสาขาที่ปฏิบัติงานในวันนั้นๆ (เลือกได้อิสระทุกวัน) แทนตารางส่วนตัว
+  // แต่ละสาขาตั้งขั้นคอมเองอิสระ (จำนวนขั้น/ยอดขั้นต่ำ/เรทไม่จำเป็นต้องเหมือนกัน) — แอดมินเป็นผู้ตั้งค่า
+  BRANCHES: [1,2,3,4,5,6,7,8,9],
 
   // สิทธิ์วันลา/วันหยุด — คัดลอกมาจากไฟล์ Excel "คำนวณวันหยุด.xlsx" (แผ่นงาน staff / pharmacist) ตรงตัว
   // accum_holiday: วันหยุดสะสมข้ามปี — ไม่ใช่โควตาคงที่ ผู้ใช้กรอก "จำนวน (วัน)" เองทุกปี (เพดานดู carryCap)
@@ -769,6 +801,7 @@ const Auth = {
  * ----------------------------------------------------------*/
 const Tiers = {
   data: { daily:[], monthly:[] },
+  type: 'branch', // 'branch' (เภสัชกรสาขา, ใช้ตาราง daily ของตัวเอง) | 'mobile' (เภสัชโมบาย, ค่าคอมรายวันยึดตามสาขาแทน)
 
   buildDefault(){
     this.data = {
@@ -779,6 +812,12 @@ const Tiers = {
   async load(){
     const saved = await Store.getUser('tiers', null);
     if (saved && saved.daily?.length) this.data = saved; else this.buildDefault();
+    const t = await Store.getUser('pharmacistType', null);
+    this.type = t?.value === 'mobile' ? 'mobile' : 'branch';
+  },
+  async saveType(type){
+    await Store.setUser('pharmacistType', { value:type });
+    this.type = type;
   },
   async save(){
     const payload = {
@@ -840,6 +879,16 @@ const Tiers = {
   render(){
     this.renderTable('tierDailyBody', this.data.daily);
     this.renderTable('tierMonthlyBody', this.data.monthly);
+    U.$('pharmTypeSelect').value = this.type;
+    this.updateTypeUI();
+  },
+  /** ซ่อนตารางคอมรายวันส่วนตัว (ไม่ถูกใช้แล้ว) เมื่อเป็นเภสัชโมบาย — คอมรายเดือนยังใช้ตารางส่วนตัวเหมือนเดิมทุกประเภท */
+  updateTypeUI(){
+    const isMobile = this.type === 'mobile';
+    U.$('tierDailySection').classList.toggle('hide', isMobile);
+    U.setText('pharmTypeHint', isMobile
+      ? 'ค่าคอมรายวันของคุณจะคำนวณจากสาขาที่เลือกในตารางยอดขายรายวันของแต่ละวันแทน (แอดมินเป็นผู้ตั้งเรทของแต่ละสาขา) ส่วนคอมรายเดือนยังใช้ตารางด้านล่างตามปกติ'
+      : '');
   },
   bind(){
     U.$('tierDailyAddBtn').onclick   = () => this.addRow('tierDailyBody');
@@ -857,11 +906,81 @@ const Tiers = {
       this.removeRow('tierMonthlyBody', +btn.dataset.del);
     });
 
+    U.$('pharmTypeSelect').onchange = async (e) => {
+      const prev = this.type;
+      try{
+        await this.saveType(e.target.value);
+        this.updateTypeUI();
+        U.toast('บันทึกประเภทเภสัชกรแล้ว','ok');
+        Daily.recalcAll(); Daily.render();
+        App.applyPharmTypeVisibility();
+      }catch(err){
+        this.type = prev; e.target.value = prev;
+        U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
+      }
+    };
+
     U.$('saveTiersBtn').onclick = async () => {
       try{
         await this.save();
         U.toast('บันทึกขั้นคอมมิชชั่นของคุณแล้ว','ok');
         Daily.recalcAll(); Daily.render();
+      }catch(err){ U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
+    };
+  }
+};
+
+/* ---------- [6b] BRANCH TIERS -------------------------------
+ * ค่าคอมรายวันตามสาขา (สำหรับเภสัชโมบาย) — ข้อมูลกลางของระบบ ไม่ใช่ของส่วนตัวรายคน
+ * อ่านได้ทุกคนผ่าน Store.getGlobal (RLS อนุญาต SELECT อยู่แล้ว) แต่บันทึกได้เฉพาะแอดมิน
+ * ผ่าน Edge Function action ใหม่ 'set-branch-tiers' เท่านั้น (RLS บล็อกไม่ให้ client เขียนแถว
+ * กลาง (SYSTEM_ID) ตรงๆ เหมือนกับ pharm_code) — ฝั่งเซิร์ฟเวอร์ต้องเพิ่ม action นี้เองก่อนใช้งานจริง
+ * ----------------------------------------------------------*/
+const BranchTiers = {
+  data: {},          // { "1": { daily:[{min,amt}] }, ..., "9": {...} }
+  selected: 1,
+
+  async load(){
+    this.data = (await Store.getGlobal('branchTiers', null)) || {};
+  },
+  listFor(branch){ return this.data[String(branch)]?.daily || []; },
+  daily(sales, branch){
+    if (!branch) return 0; // ยังไม่ได้เลือกสาขาของวันนั้น -> ยังคำนวณคอมไม่ได้
+    return Tiers.lookup(sales, this.listFor(branch));
+  },
+
+  renderPicker(){
+    const row = U.$('branchPickerRow');
+    row.innerHTML = CONFIG.BRANCHES.map(b=>
+      `<button type="button" class="btn small ${+b===+this.selected?'':'secondary'}" data-branch="${b}">สาขา ${b}</button>`
+    ).join('');
+  },
+  renderGrid(){
+    Tiers.renderTable('branchTierBody', this.listFor(this.selected));
+  },
+  render(){
+    this.renderPicker();
+    this.renderGrid();
+  },
+
+  bind(){
+    U.$('branchPickerRow').addEventListener('click', (e)=>{
+      const btn=e.target.closest('[data-branch]'); if(!btn) return;
+      this.selected = +btn.dataset.branch;
+      this.render();
+    });
+    U.$('branchTierAddBtn').onclick = () => Tiers.addRow('branchTierBody');
+    U.$('branchTierClearBtn').onclick = () => Tiers.clearAll('branchTierBody', `สาขา ${this.selected} `);
+    U.$('branchTierBody').addEventListener('click', (e)=>{
+      const btn=e.target.closest('[data-del]'); if(!btn) return;
+      Tiers.removeRow('branchTierBody', +btn.dataset.del);
+    });
+    U.$('branchTierSaveBtn').onclick = async () => {
+      const daily = Tiers.readTable('branchTierBody');
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-branch-tiers', payload:{ branch:this.selected, daily } });
+        this.data[String(this.selected)] = { daily };
+        U.toast(`บันทึกค่าคอมสาขา ${this.selected} แล้ว`,'ok');
       }catch(err){ U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
     };
   }
@@ -955,7 +1074,7 @@ const OT = {
  * ----------------------------------------------------------*/
 const Daily = {
   rows: [],
-  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false}; },
+  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false,branch:''}; },
   init(days=31){ this.rows=Array.from({length:days},(_,i)=>this.blank(i+1)); },
 
   /** อัปเดตข้อความอธิบายเกณฑ์ OT ใต้ตาราง ให้ตรงกับ role ของผู้ใช้ที่ล็อกอินอยู่ */
@@ -985,6 +1104,12 @@ const Daily = {
             <input class="in-num ot-m ${r.otManual?'is-manual':''}" data-f="otM" type="number" min="0" max="59" step="1" placeholder="นาที" value="${otM||''}">
           </div>
         </td>
+        <td class="pmobile-only">
+          <select class="role-select branch-select" data-f="branch">
+            <option value="">-</option>
+            ${CONFIG.BRANCHES.map(b=>`<option value="${b}" ${String(r.branch)===String(b)?'selected':''}>สาขา ${b}</option>`).join('')}
+          </select>
+        </td>
         <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}"></td>
         <td><button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
       </tr>`;
@@ -1013,7 +1138,12 @@ const Daily = {
   recalc(i){
     const r=this.rows[i];
     if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
-    if (!r.comManual) r.com = Tiers.daily(r.sales);
+    if (!r.comManual){
+      // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
+      r.com = (CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile')
+        ? BranchTiers.daily(r.sales, r.branch)
+        : Tiers.daily(r.sales);
+    }
   },
   recalcAll(){ this.rows.forEach((_,i)=>this.recalc(i)); },
 
@@ -1060,6 +1190,14 @@ const Daily = {
       } else {
         r[f]=U.num(inp.value);
       }
+      this.recalc(i); this.refreshRow(i); this.summary();
+      Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+    });
+    // เลือกสาขาที่ปฏิบัติงาน (เภสัชโมบาย) — ใช้ event 'change' แยกเพราะเป็น <select>
+    body.addEventListener('change',(e)=>{
+      const sel=e.target.closest('.branch-select'); if(!sel) return;
+      const tr=sel.closest('tr'); const i=+tr.dataset.i;
+      this.rows[i].branch = sel.value;
       this.recalc(i); this.refreshRow(i); this.summary();
       Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
     });
@@ -1952,6 +2090,9 @@ const App = {
 
     await Tiers.load();
     Tiers.render();
+    await BranchTiers.load();
+    this.applyPharmTypeVisibility();
+    if (CURRENT_ROLE === 'admin') BranchTiers.render();
     await Leave.load();
     await this.loadMonthData();
 
@@ -1968,6 +2109,11 @@ const App = {
     U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
     // sales-only: ตารางยอดขายรายวัน ใช้ร่วมกันได้ทั้งเภสัชกรและพนักงาน/ผู้ช่วย (admin เห็นเพื่อพรีวิว)
     U.$$('.sales-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='staff'||role==='admin')));
+  },
+  // pmobile-only: คอลัมน์ "สาขา" ในตารางยอดขายรายวัน — เฉพาะเภสัชกรที่ตั้งประเภทตัวเองเป็น "โมบาย" เท่านั้น
+  applyPharmTypeVisibility(){
+    const show = CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile';
+    U.$$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
   },
 
   bindTabs(){
@@ -2016,6 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Daily.bind();
   Salary.bind();
   Tiers.bind();
+  BranchTiers.bind();
   Leave.bind();
   AdminLeave.bindControls();
   Admin.bind();
