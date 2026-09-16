@@ -2117,12 +2117,12 @@ const App = {
     U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
     // sales-only: ตารางยอดขายรายวัน ใช้ร่วมกันได้ทั้งเภสัชกรและพนักงาน/ผู้ช่วย (admin เห็นเพื่อพรีวิว)
     U.$$('.sales-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='staff'||role==='admin')));
-    U.$('.self-name-only').forEach(el => el.classList.toggle('hide', !(role==='staff'||role==='pharmacist')));
+    U.$$('.self-name-only').forEach(el => el.classList.toggle('hide', !(role==='staff'||role==='pharmacist')));
   },
   // pmobile-only: คอลัมน์ "สาขา" ในตารางยอดขายรายวัน — เฉพาะเภสัชกรที่ตั้งประเภทตัวเองเป็น "โมบาย" เท่านั้น
   applyPharmTypeVisibility(){
     const show = CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile';
-    U.$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
+    U.$$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
   },
 
   bindNameEdit(){
