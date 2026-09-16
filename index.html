@@ -242,6 +242,12 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
       <input type="month" id="dataMonth" class="btn small">
     </div>
 
+  <div class="row self-name-only" id="editNameRow">
+    <strong>ชื่อของฉัน</strong>
+    <input type="text" id="editNameInput" placeholder="ชื่อ-นามสกุล">
+    <button class="btn small" id="saveNameBtn">บันทึกชื่อ</button>
+  </div>
+
   <!-- ---------- TAB: DAILY ---------- -->
   <section id="tab-daily" class="tab card hide">
     <h3>ยอดขายรายวัน / อ่านตารางลงเวลาจากรูปภาพ</h3>
@@ -2082,10 +2088,12 @@ const App = {
     U.$('authOverlay').classList.add('hide');
     U.$('appShell').classList.remove('hide');
     U.setText('whoami', `${profile?.full_name||CURRENT_USER.email} (${CURRENT_ROLE})`);
+    if (U.$('editNameInput')) U.$('editNameInput').value = profile?.full_name || '';
 
     this.applyRoleVisibility();
     this.bindTabs();
     this.bindMonthPicker();
+    this.bindNameEdit();
     this.openDefaultTab();
 
     await Tiers.load();
@@ -2109,11 +2117,26 @@ const App = {
     U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
     // sales-only: ตารางยอดขายรายวัน ใช้ร่วมกันได้ทั้งเภสัชกรและพนักงาน/ผู้ช่วย (admin เห็นเพื่อพรีวิว)
     U.$$('.sales-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='staff'||role==='admin')));
+    U.$('.self-name-only').forEach(el => el.classList.toggle('hide', !(role==='staff'||role==='pharmacist')));
   },
   // pmobile-only: คอลัมน์ "สาขา" ในตารางยอดขายรายวัน — เฉพาะเภสัชกรที่ตั้งประเภทตัวเองเป็น "โมบาย" เท่านั้น
   applyPharmTypeVisibility(){
     const show = CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile';
-    U.$$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
+    U.$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
+  },
+
+  bindNameEdit(){
+    const btn = U.$('saveNameBtn');
+    if (!btn) return;
+    btn.onclick = async () => {
+      const name = (U.$('editNameInput').value || '').trim();
+      if (!name) return U.toast('กรอกชื่อ-นามสกุล','warn');
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'update-own-name', payload:{ full_name:name } });
+        U.setText('whoami', `${name} (${CURRENT_ROLE})`);
+        U.toast('บันทึกชื่อเรียบร้อย','ok');
+      }catch(err){ U.toast(err.message,'error'); }
+    };
   },
 
   bindTabs(){
