@@ -12,24 +12,24 @@
 
 <style>
 :root{
-  --bg:#0f172a; --card:#1e293b; --line:#334155; --txt:#e2e8f0; --muted:#94a3b8;
-  --pri:#3b82f6; --pri-d:#2563eb; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
-  --radius:10px;
+  --bg:#f8fafc; --card:#ffffff; --line:#e2e8f0; --txt:#0f172a; --muted:#64748b;
+  --pri:#4f46e5; --pri-d:#4338ca; --pri-soft:#eef2ff; --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  --radius:12px;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--txt)}
 input,select,button{font-family:inherit}
 .hide{display:none !important}
 
-.auth-overlay{position:fixed; inset:0; background:linear-gradient(160deg,#0f172a,#1e3a5f); display:flex; align-items:center; justify-content:center; z-index:100;}
-.auth-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:28px; width:100%; max-width:380px;}
+.auth-overlay{position:fixed; inset:0; background:linear-gradient(160deg,#eef2ff,#e0e7ff); display:flex; align-items:center; justify-content:center; z-index:100;}
+.auth-card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:28px; width:100%; max-width:380px; box-shadow:0 1px 3px rgba(15,23,42,.06);}
 .auth-card h2{margin-top:0; text-align:center}
 .auth-tabs{display:flex; gap:8px; margin-bottom:16px}
 .auth-tabs button{flex:1; padding:8px; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:8px; cursor:pointer;}
 .auth-tabs button.active{background:var(--pri); color:#fff; border-color:var(--pri)}
 .field{margin-bottom:12px}
 .field label{display:block; font-size:13px; color:var(--muted); margin-bottom:4px}
-.field input, .field select{width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:#0f172a; color:var(--txt);}
+.field input, .field select{width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--txt);}
 .btn{width:100%; padding:10px; border:none; border-radius:8px; background:var(--pri); color:#fff; font-weight:600; cursor:pointer;}
 .btn:hover{background:var(--pri-d)}
 .btn.secondary{background:transparent; border:1px solid var(--line); color:var(--txt)}
@@ -37,41 +37,48 @@ input,select,button{font-family:inherit}
 .msg{font-size:13px; margin-top:8px; text-align:center}
 .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
 
-#appShell{max-width:1100px; margin:0 auto; padding:16px}
-.topbar{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 4px; border-bottom:1px solid var(--line); margin-bottom:14px;}
-.topbar .who{font-size:13px; color:var(--muted)}
-.topbar .right{display:flex; gap:8px; align-items:center}
-.tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px}
-.tabs button{padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--txt); cursor:pointer; font-size:14px;}
-.tabs button.active{background:var(--pri); border-color:var(--pri)}
-.card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:16px;}
+#appShell{max-width:1320px; margin:0 auto}
+.app-layout{display:flex; align-items:flex-start; min-height:100vh}
+.sidebar{width:232px; flex:0 0 auto; background:var(--card); border-right:1px solid var(--line); padding:22px 14px; display:flex; flex-direction:column; gap:2px; min-height:100vh; position:sticky; top:0;}
+.brand{display:flex; align-items:center; gap:10px; padding:4px 10px 22px 10px}
+.brand-mark{width:32px; height:32px; border-radius:9px; background:var(--pri); display:flex; align-items:center; justify-content:center; flex:0 0 auto}
+.brand-name{font-size:14px; font-weight:700; color:var(--txt); line-height:1.3}
+.sidebar-foot{margin-top:auto; padding-top:14px; border-top:1px solid var(--line); display:flex; align-items:center; gap:8px}
+.sidebar-foot .who{font-size:12px; color:var(--muted); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.sidebar-foot .btn{width:auto; padding:6px 10px; font-size:12px}
+.main-content{flex:1; min-width:0; padding:22px 28px}
+.content-topbar{display:flex; justify-content:flex-end; margin-bottom:16px}
+.tabs{display:flex; flex-direction:column; gap:3px; margin-bottom:0}
+.tabs button{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:9px 12px; border-radius:9px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:13.5px; font-weight:500;}
+.tabs button.active{background:var(--pri-soft); border-color:var(--pri-soft); color:var(--pri-d); font-weight:600}
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:16px; box-shadow:0 1px 2px rgba(15,23,42,.03);}
 .card h3{margin-top:0}
 .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
 table{width:100%; border-collapse:collapse; font-size:13px}
 th,td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:center}
 th{color:var(--muted); font-weight:600}
-td input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:#0f172a; color:var(--txt); text-align:center;}
-td input.is-manual{border-color:var(--warn); background:#3a2f12}
+td input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--txt); text-align:center;}
+td input.is-manual{border-color:var(--warn); background:#fef3c7}
 .ot-input-group{display:flex; align-items:center; gap:3px; justify-content:center}
 .ot-input-group input{width:44px; padding:5px 3px; text-align:center; flex:0 0 auto}
 .ot-sep{color:var(--muted); font-size:12px}
 @media (max-width:640px){
   .ot-input-group input{width:38px; padding:5px 2px; font-size:12px}
 }
-tfoot td{font-weight:700; background:#0f172a}
-.grp td{background:#0f172a; text-align:left; color:var(--pri); font-weight:700}
+tfoot td{font-weight:700; background:var(--bg)}
+.grp td{background:var(--bg); text-align:left; color:var(--pri); font-weight:700}
 .amt{text-align:right; font-variant-numeric:tabular-nums}
 .net td{font-size:16px; color:var(--ok)}
 .mul-fixed{color:var(--err)}
 .hint{font-size:12px; color:var(--muted)}
 .btn-reset{border:none; background:transparent; color:var(--warn); cursor:pointer; font-size:14px}
 .tbl-add-btn{border:none; background:transparent; color:var(--pri); cursor:pointer; font-size:16px; font-weight:700; line-height:1; padding:2px 8px; border-radius:6px}
-.tbl-add-btn:hover{background:rgba(59,130,246,.12)}
+.tbl-add-btn:hover{background:var(--pri-soft)}
 .tbl-del-btn{border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; padding:2px 6px; border-radius:6px}
-.tbl-del-btn:hover{background:rgba(239,68,68,.12); color:var(--err)}
-.extra-label-input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:#0f172a; color:var(--txt); text-align:left !important;}
+.tbl-del-btn:hover{background:rgba(220,38,38,.1); color:var(--err)}
+.extra-label-input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--txt); text-align:left !important;}
 .tbl-scroll{overflow-x:auto}
-.role-select{padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:#0f172a; color:var(--txt); font-size:13px;}
+.role-select{padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--txt); font-size:13px;}
 .role-select:disabled{opacity:.6; cursor:not-allowed}
 
 /* ---- Leave tab: wide month-by-month grid ---- */
@@ -97,24 +104,24 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 .tier-add-btn{width:auto; padding:6px 12px; font-size:12.5px}
 .tier-head-btns{display:flex; gap:8px; flex-wrap:wrap}
 .tier-clear-btn{width:auto; padding:6px 12px; font-size:12.5px}
-.tier-clear-btn:hover{background:rgba(239,68,68,.12); border-color:var(--err); color:var(--err)}
+.tier-clear-btn:hover{background:rgba(220,38,38,.1); border-color:var(--err); color:var(--err)}
 
 .tier-grid{display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-top:10px}
 .tier-item{
   display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:end;
-  background:#0b1526; border:1px solid var(--line); border-radius:8px; padding:10px 10px;
+  background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 10px;
 }
 .tier-field label{display:block; font-size:11px; color:var(--muted); margin-bottom:4px; font-weight:500}
 .tier-field input{
   width:100%; padding:7px 8px; border-radius:6px; border:1px solid var(--line);
-  background:#0f172a; color:var(--txt); text-align:right; font-variant-numeric:tabular-nums; font-size:13.5px;
+  background:var(--card); color:var(--txt); text-align:right; font-variant-numeric:tabular-nums; font-size:13.5px;
 }
 .tier-field input:focus{outline:none; border-color:var(--pri)}
 .tier-del{
   width:32px; height:32px; border-radius:6px; border:1px solid var(--line); background:transparent;
   color:var(--muted); cursor:pointer; font-size:15px; line-height:1; flex-shrink:0;
 }
-.tier-del:hover{background:rgba(239,68,68,.12); border-color:var(--err); color:var(--err)}
+.tier-del:hover{background:rgba(220,38,38,.1); border-color:var(--err); color:var(--err)}
 .tier-empty{grid-column:1/-1; font-size:13px; color:var(--muted); padding:10px 2px}
 
 @media (max-width:640px){
@@ -170,23 +177,32 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 
 <!-- ============== APP SHELL ============== -->
 <div id="appShell" class="hide">
-  <div class="topbar">
-    <strong>ระบบเงินเดือน CMO</strong>
-    <div class="right">
-      <input type="month" id="dataMonth" class="btn small">
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg></div>
+      <div class="brand-name">ระบบเงินเดือน CMO</div>
+    </div>
+
+    <div class="tabs" id="tabNav">
+      <button data-tab="daily"  class="sales-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>ยอดขายรายวัน</button>
+      <button data-tab="salary" class="pharm-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>เงินเดือนเภสัชกร</button>
+      <button data-tab="staff"  class="stf-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>เงินเดือนพนักงาน</button>
+      <button data-tab="tiers"  class="pharm-strict"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-11M12 6V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/></svg>ตั้งค่าคอมมิชชั่น</button>
+      <button data-tab="leave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>วันลา/วันหยุด</button>
+      <button data-tab="admin"  class="admin-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/></svg>ผู้ดูแลระบบ</button>
+    </div>
+
+    <div class="sidebar-foot">
       <span class="who" id="whoami"></span>
       <button class="btn secondary small" id="logoutBtn">ออกจากระบบ</button>
     </div>
-  </div>
+  </aside>
 
-  <div class="tabs" id="tabNav">
-    <button data-tab="daily"  class="sales-only">ยอดขายรายวัน</button>
-    <button data-tab="salary" class="pharm-only">เงินเดือนเภสัชกร</button>
-    <button data-tab="staff"  class="stf-only">เงินเดือนพนักงาน</button>
-    <button data-tab="tiers"  class="pharm-strict">ตั้งค่าคอมมิชชั่น</button>
-    <button data-tab="leave">วันลา/วันหยุด</button>
-    <button data-tab="admin"  class="admin-only">ผู้ดูแลระบบ</button>
-  </div>
+  <main class="main-content">
+    <div class="content-topbar">
+      <input type="month" id="dataMonth" class="btn small">
+    </div>
 
   <!-- ---------- TAB: DAILY ---------- -->
   <section id="tab-daily" class="tab card hide">
@@ -441,6 +457,8 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
       <tbody id="summaryBody"></tbody>
     </table>
   </section>
+  </main>
+</div>
 </div>
 
 <div id="toast"></div>
@@ -1823,7 +1841,7 @@ const Export = {
   },
   async pdf(sectionId, filename){
     const el = U.$(sectionId);
-    const canvas = await html2canvas(el, {backgroundColor:'#1e293b'});
+    const canvas = await html2canvas(el, {backgroundColor:'#ffffff'});
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p','pt','a4');
     const imgData = canvas.toDataURL('image/png');
