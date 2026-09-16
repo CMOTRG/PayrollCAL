@@ -134,6 +134,44 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 .toast--ok{border-color:var(--ok); color:var(--ok)}
 .toast--error{border-color:var(--err); color:var(--err)}
 .toast--warn{border-color:var(--warn); color:var(--warn)}
+
+/* ---- Mobile: sidebar -> compact top bar + fixed bottom tab nav (frees up full width for data entry) ---- */
+@media (max-width:768px){
+  #appShell{max-width:100%}
+  .app-layout{flex-direction:column; min-height:auto}
+  .sidebar{
+    width:100%; flex-direction:row; align-items:center; justify-content:space-between;
+    min-height:auto; gap:10px; padding:10px 14px;
+    border-right:none; border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:60;
+  }
+  .brand{padding:0}
+  .brand-name{display:none}
+  .sidebar-foot{margin-top:0; padding-top:0; border-top:none; flex:0 0 auto}
+  .sidebar-foot .who{max-width:110px; flex:0 1 auto}
+
+  .tabs{
+    position:fixed; left:0; right:0; bottom:0; z-index:60;
+    flex-direction:row; justify-content:space-around;
+    background:var(--card); border-top:1px solid var(--line);
+    padding:4px 2px calc(4px + env(safe-area-inset-bottom,0px));
+    gap:0; margin:0; box-shadow:0 -2px 8px rgba(15,23,42,.05);
+  }
+  .tabs button{
+    flex:1 1 0; flex-direction:column; width:auto; text-align:center; justify-content:center;
+    padding:6px 2px; gap:2px; font-size:10px; border-radius:10px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .tabs button svg{width:20px; height:20px; flex-shrink:0}
+
+  .main-content{padding:14px 14px calc(72px + env(safe-area-inset-bottom,0px))}
+  .content-topbar{justify-content:center}
+  .card{padding:14px}
+  .row{gap:8px}
+  table.leave-grid input[type="number"]{width:44px}
+
+  #toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
 </style>
 </head>
 <body>
