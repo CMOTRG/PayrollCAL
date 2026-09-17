@@ -596,6 +596,9 @@ const CONFIG = {
   //   ประเภทที่ไม่มีตาราง prorate (ลาสมรส/ลาคลอด/ลาอุปสมบท/ลาจัดการงานศพ) พอถึงปีที่ครบเงื่อนไขได้เต็มโควตาทันที ไม่ prorate
   //   เภสัชกรไม่มีเงื่อนไขอายุงาน/ไม่ prorate สำหรับรายการเดิม — ได้โควตาเต็มทุกปี ยกเว้นลาคลอด/ลาอุปสมบท/ลาจัดการงานศพ
   //   ที่เพิ่มมาใหม่ ซึ่งใช้เกณฑ์อายุงาน (tenureYear) และการแยกเพศ (genderOnly) เดียวกับ staff ทุกประการ
+  //   onceOnly:true (ลาสมรส/ลาอุปสมบท) = สิทธิ์ตลอดอายุงาน ไม่ใช่รายปี — ใช้ได้ครั้งเดียวรวมทุกปีตั้งแต่ปีที่ปลดล็อก
+  //   ปีถัดจากที่เริ่มใช้จะไม่รีเซตโควตาคืนเต็ม แต่จะหักยอดที่ใช้ไปแล้วในปีก่อนๆ ออกจากโควตาเต็มก่อนเสมอ
+  //   (ดู LeaveCalc.effectiveQuota / LeaveCalc.build พารามิเตอร์ priorUsed) — ถ้าใช้ครบแล้วจะเหลือ 0 ตลอดไป ไม่กลับมาเต็มอีก
   LEAVE_RULES: {
     pharmacist: [
       { key:'accum_holiday',      label:'วันหยุดสะสมจากปีก่อนหน้า', cond:'สะสมสูงสุดไม่เกิน 7 วัน', quota:null, carryCap:7 },
@@ -603,7 +606,7 @@ const CONFIG = {
       { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'-', quota:13 },
       { key:'personal_vacation',  label:'วันลากิจ พักผ่อน',         cond:'-', quota:10 },
       { key:'maternity',          label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
-      { key:'ordination',         label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male' },
+      { key:'ordination',         label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male', onceOnly:true },
       { key:'funeral',            label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ],
     staff: [
@@ -611,10 +614,10 @@ const CONFIG = {
       { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',            cond:'ผ่านทดลองงาน',   quota:10, tenureYear:1 },
       { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',         cond:'เข้าปีที่ 2',     quota:5,  tenureYear:2 },
       { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
-      { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3 },
+      { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3, onceOnly:true },
       { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4',     quota:3,  tenureYear:4 },
       { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
-      { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male' },
+      { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male', onceOnly:true },
       { key:'funeral',       label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ]
   },
@@ -1635,18 +1638,23 @@ const LeaveCalc = {
     return m ? { y:+m[1], m:+m[2] } : null;
   },
 
-  /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน หรือเพศไม่ตรงกับ rule (locked) */
-  effectiveQuota(rule, role, hireYm, year, carryDays, gender){
+  /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน หรือเพศไม่ตรงกับ rule (locked)
+   *  priorUsed: เฉพาะ rule ที่ onceOnly:true — ยอดที่ใช้ไปแล้วสะสมจากทุกปีก่อนหน้าปีที่ดู (year) จะถูกหัก
+   *  ออกจากโควตาเต็มก่อนคืนค่า ทำให้สิทธิ์เป็น "ตลอดอายุงาน" ไม่รีเซตกลับเต็มทุกปี — ถ้าใช้ครบแล้วจะได้ 0 ตลอดไป */
+  effectiveQuota(rule, role, hireYm, year, carryDays, gender, priorUsed=0){
     // สิทธิ์เฉพาะเพศ (ลาคลอด=หญิง, ลาอุปสมบท=ชาย) — ซ่อน/ล็อกถ้ารู้เพศแล้วแต่ไม่ตรง
     // ถ้ายังไม่ตั้งค่าเพศไว้ (gender ว่าง) ให้แสดงตามปกติไปก่อน กันข้อมูลยังไม่ครบ
     if (rule.genderOnly && gender && gender !== rule.genderOnly) return null;
     if (rule.key === 'accum_holiday'){
       return Math.max(0, Math.min(U.num(carryDays), rule.carryCap ?? 0));
     }
+    // onceOnly:true (ลาสมรส/ลาอุปสมบท) หักยอดสะสมที่ใช้ไปแล้วในปีก่อนๆ ออกจากโควตาเต็มเสมอ ไม่ว่าจะผ่านเงื่อนไข
+    // อายุงานมาแล้วกี่ปีก็ตาม — ทำให้เป็นสิทธิ์ครั้งเดียวตลอดอายุงานแทนที่จะรีเซตเต็มทุกปี
+    const clampOnce = (q) => rule.onceOnly ? Math.max(0, q - U.num(priorUsed)) : q;
     // เกณฑ์อายุงาน (tenureYear) ใช้กับทุก role ที่ rule ระบุไว้ (ไม่ใช่เฉพาะ staff อีกต่อไป) —
     // รายการที่ไม่มี tenureYear (ของทั้ง staff และ pharmacist) ยังคงได้โควตาเต็มทุกปีเหมือนเดิม
-    if (!rule.tenureYear) return rule.quota; // ไม่มีเงื่อนไขอายุงาน -> เต็มทุกปี
-    if (!hireYm) return rule.quota; // ยังไม่มีวันที่เริ่มงานให้อ้างอิง -> ให้สิทธิ์เต็มไปก่อน กันข้อมูลยังไม่ครบ
+    if (!rule.tenureYear) return clampOnce(rule.quota); // ไม่มีเงื่อนไขอายุงาน -> เต็มทุกปี (หรือหัก onceOnly ถ้ามี)
+    if (!hireYm) return clampOnce(rule.quota); // ยังไม่มีวันที่เริ่มงานให้อ้างอิง -> ให้สิทธิ์เต็มไปก่อน กันข้อมูลยังไม่ครบ
 
     // อายุงานนับจากวันแรกที่ทำงานจริง (วัน/เดือนที่เริ่มงาน) แต่ละประเภทเปิดใช้ "ทันทีที่ครบ (tenureYear-1) ปี"
     // นับจากวันเริ่มงาน กล่าวคือปีปฏิทินที่ครบเงื่อนไขคือ unlockYear = ปีที่เริ่มงาน + (tenureYear-1)
@@ -1656,18 +1664,31 @@ const LeaveCalc = {
     // ประเภทที่ไม่มีตาราง prorate (ลาสมรส/ลาคลอด/ลาอุปสมบท/ลาจัดการงานศพ) พอถึงปีที่ครบเงื่อนไขได้เต็มโควตาทันที ไม่ prorate
     const unlockYear = hireYm.y + (rule.tenureYear - 1);
     if (year < unlockYear) return null;        // ยังไม่ครบอายุงานตามเงื่อนไข -> ล็อกทั้งปี
-    if (year > unlockYear) return rule.quota;  // ผ่านปีที่ครบเงื่อนไขมาแล้ว -> เต็มโควตาทุกปีถัดไป
+    if (year > unlockYear) return clampOnce(rule.quota);  // ผ่านปีที่ครบเงื่อนไขมาแล้ว -> เต็มโควตา (หรือหัก onceOnly ถ้ามี)
     const prorate = CONFIG.LEAVE_PRORATE_STAFF[rule.key];
-    return prorate ? prorate[hireYm.m - 1] : rule.quota; // ปีที่เพิ่งครบเงื่อนไข -> prorate ตามเดือนที่เริ่มงาน (ถ้ามีตาราง)
+    return clampOnce(prorate ? prorate[hireYm.m - 1] : rule.quota); // ปีที่เพิ่งครบเงื่อนไข -> prorate ตามเดือนที่เริ่มงาน (ถ้ามีตาราง)
   },
 
-  /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ */
-  build(role, hireDateStr, carryDays, usedMap, year, gender){
+  /** rule ที่เป็นสิทธิ์ครั้งเดียวตลอดอายุงาน (onceOnly:true) ของ role หนึ่งๆ */
+  onceOnlyRules(role){
+    const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+    return rules.filter(r=>r.onceOnly);
+  },
+
+  /** ปีปฏิทินที่ rule หนึ่งๆ ปลดล็อก (ครบเงื่อนไขอายุงาน) หรือ null ถ้าไม่มี hireYm/tenureYear ให้คำนวณ */
+  unlockYear(rule, hireYm){
+    if (!hireYm || !rule.tenureYear) return null;
+    return hireYm.y + (rule.tenureYear - 1);
+  },
+
+  /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ
+   *  priorUsedTotals: { [ruleKey]: N } ยอดใช้สะสมจากทุกปีก่อนหน้า (เฉพาะ rule ที่ onceOnly:true) */
+  build(role, hireDateStr, carryDays, usedMap, year, gender, priorUsedTotals={}){
     const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
     const hireYm = this.parseDate(hireDateStr);
     const data = {};
     rules.forEach(rule=>{
-      const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender);
+      const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender, priorUsedTotals[rule.key]);
       const locked = q === null;
       const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
       const remain = []; let running = locked ? 0 : q;
@@ -1691,6 +1712,7 @@ const Leave = {
   gender: '',
   carryDays: 0,
   usedMap: {},
+  priorUsedTotals: {},
   GENDER_LABEL: { male:'ชาย', female:'หญิง' },
 
   async load(){
@@ -1702,7 +1724,29 @@ const Leave = {
     const carry = await Store.getUser(`leaveCarry:${this.year}`, null);
     this.carryDays = U.num(carry?.days);
     this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
+    const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
+    this.priorUsedTotals = await this.computePriorUsedTotals(role);
     this.render();
+  },
+
+  /** รวมยอดวันลาที่ใช้ไปแล้วของทุกปีก่อนหน้าปีที่ดู (this.year) เฉพาะประเภทที่เป็นสิทธิ์ครั้งเดียว
+   *  (onceOnly:true เช่น ลาสมรส/ลาอุปสมบท) ใช้เป็นฐานหักออกจากโควตาเต็มใน LeaveCalc.effectiveQuota
+   *  เพื่อไม่ให้สิทธิ์รีเซตกลับเต็มทุกปีหลังจากเริ่มใช้ไปแล้ว */
+  async computePriorUsedTotals(role){
+    const hireYm = LeaveCalc.parseDate(this.hireDate);
+    const totals = {};
+    for (const rule of LeaveCalc.onceOnlyRules(role)){
+      const unlockYear = LeaveCalc.unlockYear(rule, hireYm);
+      let sum = 0;
+      if (unlockYear != null){
+        for (let y = unlockYear; y < this.year; y++){
+          const used = await Store.getUser(`leaveUsed:${y}`, {});
+          sum += (used?.[rule.key] || []).reduce((a,b)=>a+U.num(b), 0);
+        }
+      }
+      totals[rule.key] = sum;
+    }
+    return totals;
   },
 
   saveCarry: U.debounce(()=>{ Store.setUser(`leaveCarry:${Leave.year}`, { days:Leave.carryDays }).catch(()=>{}); }, 500),
@@ -1735,7 +1779,7 @@ const Leave = {
         : '');
     }
 
-    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender);
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender, this.priorUsedTotals);
     U.$('leaveQuotaBody').innerHTML = built.rules.map(rule=>{
       const d = built.data[rule.key];
       const quotaCell = rule.key === 'accum_holiday'
@@ -1755,8 +1799,8 @@ const Leave = {
     }).join('');
 
     U.setText('leaveQuotaNote', role==='pharmacist'
-      ? `สิทธิ์ปี ${this.year} — ส่วนใหญ่รีเซ็ตเต็มทุกปี ยกเว้นลาคลอด/ลาอุปสมบท/ลาจัดการงานศพที่มีเงื่อนไขอายุงาน — แถวสีจาง (ยังไม่ถึงเกณฑ์) จะปลดล็อกอัตโนมัติเมื่อครบปีตามวันที่เริ่มงาน`
-      : `สิทธิ์ปี ${this.year} ตามเงื่อนไขอายุงานในแต่ละแถว — แถวสีจาง (ยังไม่ถึงเกณฑ์) จะปลดล็อกอัตโนมัติเมื่อครบปีตามวันที่เริ่มงาน`);
+      ? `สิทธิ์ปี ${this.year} — ส่วนใหญ่รีเซ็ตเต็มทุกปี ยกเว้นลาคลอด/ลาจัดการงานศพที่มีเงื่อนไขอายุงาน และลาอุปสมบทที่เป็นสิทธิ์ครั้งเดียวตลอดอายุงาน (ใช้หมดแล้วจะไม่รีเซตกลับเต็ม) — แถวสีจาง (ยังไม่ถึงเกณฑ์) จะปลดล็อกอัตโนมัติเมื่อครบปีตามวันที่เริ่มงาน`
+      : `สิทธิ์ปี ${this.year} ตามเงื่อนไขอายุงานในแต่ละแถว — ลาสมรสและลาอุปสมบทเป็นสิทธิ์ครั้งเดียวตลอดอายุงาน (ใช้หมดแล้วจะไม่รีเซตกลับเต็มในปีถัดไป) — แถวสีจาง (ยังไม่ถึงเกณฑ์) จะปลดล็อกอัตโนมัติเมื่อครบปีตามวันที่เริ่มงาน`);
   },
 
   formatDate(str){
@@ -1794,7 +1838,7 @@ const Leave = {
   /** อัปเดตแค่คอลัมน์ "คงเหลือ" สดๆ ตอนพิมพ์ ไม่ต้อง render ตารางใหม่ทั้งหมด */
   recalcAndRepaint(){
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
-    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender);
+    const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender, this.priorUsedTotals);
     built.rules.forEach(rule=>{
       const d = built.data[rule.key];
       for (let i=0;i<12;i++){
@@ -1813,7 +1857,48 @@ const AdminLeave = {
   year: new Date().getFullYear(),
   month: new Date().getMonth() + 1, // 1-12
   rows: [],
+  priorUsedTotals: new Map(), // personKey -> { [ruleKey]: N } ยอดใช้สะสมของปีก่อนหน้า (เฉพาะ rule onceOnly)
   _loaded: false,
+
+  /** กุญแจระบุตัวคนสำหรับจับคู่ข้อมูลข้ามปี (leave-summary คืน field "id" เป็น user id) */
+  personKey(p){ return p.id ?? p.user_id ?? p.full_name; },
+
+  /** รวมยอดวันลาที่ใช้ไปแล้วของทุกปีก่อนหน้าปีที่ดู (this.year) ของทุกคน เฉพาะประเภทที่เป็นสิทธิ์ครั้งเดียว
+   *  (onceOnly:true) — ต้องเรียก leave-summary ย้อนหลังทีละปีเพราะ edge function คืนข้อมูลทีละปีเท่านั้น
+   *  ขอบเขตปีจำกัดเฉพาะปีที่มีคนปลดล็อก rule นั้นจริงๆ (ตั้งแต่ unlockYear ของแต่ละคนจนถึงปีก่อนปีที่ดู) */
+  async loadPriorUsedTotals(rows){
+    const neededYears = new Set();
+    rows.forEach(p=>{
+      const rules = LeaveCalc.onceOnlyRules(p.role);
+      if (!rules.length) return;
+      const hireYm = LeaveCalc.parseDate(p.start_date);
+      rules.forEach(rule=>{
+        if (rule.genderOnly && p.gender && p.gender !== rule.genderOnly) return;
+        const unlockYear = LeaveCalc.unlockYear(rule, hireYm);
+        if (unlockYear == null) return;
+        for (let y = unlockYear; y < this.year; y++) neededYears.add(y);
+      });
+    });
+
+    const totals = new Map();
+    for (const y of neededYears){
+      let yearRows;
+      try{ yearRows = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(y) } }); }
+      catch(_){ continue; } // ปีที่โหลดไม่สำเร็จ ข้ามไป (ยอดสะสมของปีนั้นจะไม่ถูกนับ)
+      yearRows.forEach(p=>{
+        const rules = LeaveCalc.onceOnlyRules(p.role);
+        if (!rules.length) return;
+        const key = this.personKey(p);
+        if (!totals.has(key)) totals.set(key, {});
+        const t = totals.get(key);
+        rules.forEach(rule=>{
+          const arr = (p.leave_used||{})[rule.key] || [];
+          t[rule.key] = (t[rule.key]||0) + arr.reduce((a,b)=>a+U.num(b), 0);
+        });
+      });
+    }
+    return totals;
+  },
 
   bindControls(){
     U.$('la_year').value = this.year;
@@ -1827,6 +1912,7 @@ const AdminLeave = {
   async load(){
     try{
       this.rows = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(this.year) } });
+      this.priorUsedTotals = await this.loadPriorUsedTotals(this.rows);
       this._loaded = true;
       this.renderTables();
     }catch(err){ U.toast('โหลดข้อมูลวันลาไม่สำเร็จ: '+err.message, 'error'); }
@@ -1850,7 +1936,8 @@ const AdminLeave = {
 
     const mi = this.month - 1;
     U.$(bodyId).innerHTML = people.map(p=>{
-      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year, p.gender);
+      const priorUsedTotals = this.priorUsedTotals.get(this.personKey(p)) || {};
+      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year, p.gender, priorUsedTotals);
       const genderTd = showGender ? `<td>${Admin.GENDER_LABEL[p.gender]||'-'}</td>` : '';
       const cells = rules.map(r=>{
         const d = built.data[r.key];
