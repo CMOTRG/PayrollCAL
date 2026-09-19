@@ -441,6 +441,10 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
     <div id="leaveOwnView">
       <p class="hint" id="leaveQuotaTitle">สิทธิ์วันลา/วันหยุด</p>
       <p class="hint" id="leaveHireInfo"></p>
+      <div class="row hide" id="leaveHireEdit" style="margin-bottom:8px">
+        <input type="date" id="leaveHireInput">
+        <button class="btn small" id="leaveHireSaveBtn" type="button">บันทึกวันที่เริ่มงาน (กรอกได้ครั้งเดียว)</button>
+      </div>
       <p class="hint" id="leaveGenderInfo"></p>
       <div class="tbl-scroll">
         <table class="leave-grid">
@@ -1771,8 +1775,9 @@ const Leave = {
       ? `สิทธิ์วันลา/วันหยุด ปี ${this.year} — เภสัชกรสาขา/เภสัชกรโมบาย`
       : `สิทธิ์วันลา/วันหยุด ปี ${this.year} — พนักงาน/ผู้ช่วย`);
     U.setText('leaveHireInfo', this.hireDate
-      ? `วันที่เริ่มงาน: ${this.formatDate(this.hireDate)} (แก้ไขได้โดยผู้ดูแลระบบเท่านั้น)`
-      : 'ยังไม่ได้ตั้งค่าวันที่เริ่มงาน — ติดต่อผู้ดูแลระบบเพื่อกรอกข้อมูล (มีผลต่อสิทธิ์วันลาที่ผูกอายุงาน)');
+      ? `วันที่เริ่มงาน: ${this.formatDate(this.hireDate)} (กรอกได้ครั้งเดียว — หากต้องแก้ไข กรุณาติดต่อผู้ดูแลระบบ)`
+      : 'ยังไม่ได้ตั้งค่าวันที่เริ่มงาน — กรอกวันที่เริ่มงานจริงด้านล่าง (กรอกได้ครั้งเดียว หลังบันทึกแล้วแก้เองไม่ได้ ต้องติดต่อผู้ดูแลระบบ) มีผลต่อสิทธิ์วันลาที่ผูกกับอายุงาน');
+    U.$('leaveHireEdit')?.classList.toggle('hide', !!this.hireDate);
     const hasGenderRule = (role==='pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff).some(r=>r.genderOnly);
     if (U.$('leaveGenderInfo')){
       U.setText('leaveGenderInfo', hasGenderRule
@@ -1812,6 +1817,19 @@ const Leave = {
   },
 
   bind(){
+    // พนักงาน/เภสัชกรกรอก "วันที่เริ่มงาน" เองได้ครั้งเดียว — เซิร์ฟเวอร์ (set-own-start-date) ตรวจซ้ำว่ายังว่างอยู่จริง
+    U.$('leaveHireSaveBtn')?.addEventListener('click', async ()=>{
+      const date = (U.$('leaveHireInput').value || '').trim();
+      if (!date) return U.toast('เลือกวันที่เริ่มงานก่อน','warn');
+      if (!confirm(`ยืนยันวันที่เริ่มงาน ${this.formatDate(date)} ?\nหลังบันทึกแล้วจะแก้ไขเองไม่ได้ (ต้องให้ผู้ดูแลระบบแก้ให้)`)) return;
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-own-start-date', payload:{ date } });
+        U.toast('บันทึกวันที่เริ่มงานแล้ว','ok');
+        await this.load();
+        this.render();
+      }catch(err){ U.toast(err.message,'error'); }
+    });
+
     U.$('leaveOwnView').addEventListener('input', (e)=>{
       const carryInp = e.target.closest('.leave-carry-input');
       if (carryInp){
