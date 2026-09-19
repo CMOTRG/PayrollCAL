@@ -499,7 +499,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th></tr></thead>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th><th class="salary-access-only hide">ดูเงินเดือนรวม</th></tr></thead>
         <tbody id="userListBody"></tbody>
       </table>
     </div>
@@ -518,6 +518,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
       <button class="btn small" id="branchTierSaveBtn" style="width:auto; margin-top:12px">บันทึกค่าคอมสาขานี้</button>
     </div>
 
+    <div id="salarySummaryBox" class="salary-access-only hide">
     <div class="row" style="margin-top:14px">
       <strong>สรุปเงินเดือนรวมรายเดือน</strong>
       <input type="month" id="ad_month">
@@ -528,6 +529,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
       <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th></tr></thead>
       <tbody id="summaryBody"></tbody>
     </table>
+    </div>
   </section>
   </main>
 </div>
@@ -680,6 +682,7 @@ const U = {
 const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 let CURRENT_USER = null;
 let CURRENT_ROLE = null;   // 'staff' | 'pharmacist' | 'admin'
+let CAN_VIEW_SALARY = false; // แอดมินหลัก: เห็นสรุปเงินเดือนรวม (UI เท่านั้น — ตัวบังคับจริงอยู่ที่ Edge Function)
 
 /** เรียก Edge Function พร้อมแนบ token ปัจจุบันเสมอ */
 async function callFn(name, body){
@@ -1149,7 +1152,7 @@ const Daily = {
     if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
     if (!r.comManual){
       // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
-      r.com = (CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile')
+      r.com = ((CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin') && Tiers.type==='mobile')
         ? BranchTiers.daily(r.sales, r.branch)
         : Tiers.daily(r.sales);
     }
@@ -1991,6 +1994,11 @@ const Admin = {
           <td>${genderCell}</td>
           <td><input type="date" class="start-date-input" data-start-user="${u.id}" data-prev="${u.start_date||''}" value="${u.start_date||''}"></td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
+          <td class="salary-access-only ${CAN_VIEW_SALARY?'':'hide'}">${
+            u.role==='admin' && !isSelf
+              ? `<input type="checkbox" data-salary-user="${u.id}" ${u.can_view_salary?'checked':''}>`
+              : (u.role==='admin' && u.can_view_salary ? '✓' : '')
+          }</td>
         </tr>`;
       }).join('');
     }catch(err){ U.toast('โหลดรายชื่อผู้ใช้ไม่สำเร็จ: '+err.message,'error'); }
@@ -2049,6 +2057,17 @@ const Admin = {
         genderSel.value = prev;
         U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
       }
+    });
+
+    // ให้/ถอนสิทธิ์ดูเงินเดือนรวมของแอดมินคนอื่น — เฉพาะแอดมินหลัก (Edge Function ตรวจซ้ำอีกชั้น)
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const cb=e.target.closest('[data-salary-user]'); if(!cb) return;
+      const allow=cb.checked;
+      if (!confirm(allow ? 'ให้แอดมินคนนี้ดูเงินเดือนรวมของพนักงานทุกคนได้?' : 'ถอนสิทธิ์ดูเงินเดือนรวมของแอดมินคนนี้?')){ cb.checked=!allow; return; }
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-salary-access', payload:{ user_id:cb.dataset.salaryUser, allow } });
+        U.toast('บันทึกสิทธิ์แล้ว','ok');
+      }catch(err){ cb.checked=!allow; U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
     });
 
     // เปลี่ยนบทบาทสมาชิก — ยืนยันก่อนทุกครั้งเพราะกระทบสิทธิ์การเข้าถึงของผู้ใช้คนนั้นทันที
@@ -2141,8 +2160,12 @@ const App = {
     CURRENT_USER = session.user;
     // ใช้ maybeSingle() แทน single() — single() จะโยน error ถ้าไม่มีแถวเลย ทำให้ profile
     // กลายเป็น undefined แบบเงียบๆ และ role fallback เป็น 'staff' โดยไม่มีใครรู้ว่าเกิดอะไรขึ้น
-    let { data: profile } = await sb.from('profiles')
-      .select('role, full_name').eq('id', CURRENT_USER.id).maybeSingle();
+    let { data: profile, error: profErr } = await sb.from('profiles')
+      .select('role, full_name, can_view_salary').eq('id', CURRENT_USER.id).maybeSingle();
+    if (profErr){ // คอลัมน์ can_view_salary ยังไม่ถูกสร้าง — ถอยกลับไปแบบเดิมเพื่อไม่ให้ล็อกอินพัง
+      ({ data: profile } = await sb.from('profiles')
+        .select('role, full_name').eq('id', CURRENT_USER.id).maybeSingle());
+    }
 
     if (!profile){
       // ยังไม่มี profiles row เลย — เคสนี้เกิดตอนผู้ใช้สมัครแบบต้องยืนยันอีเมลก่อน
@@ -2167,6 +2190,7 @@ const App = {
     }
 
     CURRENT_ROLE = profile?.role || 'staff';
+    CAN_VIEW_SALARY = CURRENT_ROLE === 'admin' && profile?.can_view_salary === true;
     if (!profile){
       // ไม่มี pendingSignup ให้ใช้ หรือ complete-signup ล้มเหลว — เตือนแทนที่จะปล่อยให้เข้าใจผิดว่าเป็น staff จริงๆ
       U.toast('บัญชีนี้ยังไม่ได้กำหนดบทบาทในระบบ (แสดงผลเป็นพนักงานชั่วคราว) กรุณาติดต่อผู้ดูแลระบบ', 'warn');
@@ -2199,16 +2223,17 @@ const App = {
     U.$$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
     U.$$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
     U.$$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
+    U.$$('.salary-access-only').forEach(el => el.classList.toggle('hide', !CAN_VIEW_SALARY));
     // pharm-strict: เฉพาะเภสัชกรจริงๆ เท่านั้น (ต่างจาก pharm-only ที่ admin ก็เห็นได้ด้วย)
-    // ใช้กับตั้งค่าคอมมิชชั่นส่วนตัว เพราะ admin ไม่มีตารางคอมของตัวเองที่มีความหมาย
-    U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', role!=='pharmacist'));
+    // ใช้กับตั้งค่าคอมมิชชั่นส่วนตัว — ตอนนี้ admin ก็มีหน้านี้ของตัวเองเหมือนเภสัชกร (ข้อมูลแยกรายบัญชี ไม่ปนกัน)
+    U.$$('.pharm-strict').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
     // sales-only: ตารางยอดขายรายวัน ใช้ร่วมกันได้ทั้งเภสัชกรและพนักงาน/ผู้ช่วย (admin เห็นเพื่อพรีวิว)
     U.$$('.sales-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='staff'||role==='admin')));
     U.$$('.self-name-only').forEach(el => el.classList.toggle('hide', !(role==='staff'||role==='pharmacist')));
   },
   // pmobile-only: คอลัมน์ "สาขา" ในตารางยอดขายรายวัน — เฉพาะเภสัชกรที่ตั้งประเภทตัวเองเป็น "โมบาย" เท่านั้น
   applyPharmTypeVisibility(){
-    const show = CURRENT_ROLE==='pharmacist' && Tiers.type==='mobile';
+    const show = (CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin') && Tiers.type==='mobile';
     U.$$('.pmobile-only').forEach(el => el.classList.toggle('hide', !show));
   },
 
