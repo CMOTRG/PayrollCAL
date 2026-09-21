@@ -281,7 +281,8 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     </div>
 
     <div class="row">
-      <button class="btn small secondary" id="dailyClearBtn" style="color:var(--err); border-color:var(--err)">ล้างค่าทั้งเดือน</button>
+      <button class="btn small" id="dailySaveBtn" title="บันทึกยอดขาย/OT/ค่าคอมรายวันของเดือนนี้">💾 บันทึกค่า</button>
+<button class="btn small secondary" id="dailyClearBtn" style="color:var(--err); border-color:var(--err)">ล้างค่าทั้งเดือน</button>
       <span class="hint">ล้างยอดขาย/เคส/เวลาเข้า-ออก/OT/คอม ของทุกวันในเดือนที่กำลังดูอยู่</span>
     </div>
 
@@ -292,7 +293,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
             <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
             <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม. : นาที)</th>
             <th class="pmobile-only">สาขา</th>
-            <th>คอมรายวัน</th><th></th>
+            <th>คอมรายวัน</th><th>ไม่รับคอม</th>
           </tr>
         </thead>
         <tbody id="dailyBody"></tbody>
@@ -1099,7 +1100,7 @@ const OT = {
  * ----------------------------------------------------------*/
 const Daily = {
   rows: [],
-  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false,branch:''}; },
+  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false,noCom:false,branch:''}; },
   init(days=31){ this.rows=Array.from({length:days},(_,i)=>this.blank(i+1)); },
 
   /** อัปเดตข้อความอธิบายเกณฑ์ OT ใต้ตาราง ให้ตรงกับ role ของผู้ใช้ที่ล็อกอินอยู่ */
@@ -1135,8 +1136,8 @@ const Daily = {
             ${CONFIG.BRANCHES.map(b=>`<option value="${b}" ${String(r.branch)===String(b)?'selected':''}>สาขา ${b}</option>`).join('')}
           </select>
         </td>
-        <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}"></td>
-        <td><button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
+        <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}" ${r.noCom?'disabled':''}></td>
+<td class="nocom-cell"><label class="nocom-lbl" title="วันหยุด/ไม่ได้ค่าคอมวันนี้"><input type="checkbox" data-f="noCom" ${r.noCom?'checked':''}></label> <button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
       </tr>`;
     }).join('');
     this.updateOtHint();
@@ -1166,10 +1167,27 @@ this._saveChain=(this._saveChain||Promise.resolve()).then(()=>Store.setUser(`dai
 return this._saveChain;
 },
 
+async saveNow(){
+const btn=U.$('dailySaveBtn'); btn.disabled=true;
+try{
+await this._saveChain;
+const m=App.month;
+await Store.setUser(`daily:${m}`, this.rows);
+this.summary();
+await Store.setUser(`pharmSalary:${m}`, Salary.readPharm());
+await Store.setUser(`staffSalary:${m}`, Salary.readStaff());
+U.toast(`บันทึกข้อมูลรายวันเดือน ${m} แล้ว`,'ok');
+}catch(err){
+U.toast('บันทึกไม่สำเร็จ: '+(err&&err.message||err),'error');
+}finally{ btn.disabled=false; }
+},
+
 recalc(i){
 const r=this.rows[i];
     if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
-    if (!r.comManual){
+    if (r.noCom){
+r.com = 0; // วันหยุด/ไม่ได้รับค่าคอมวันนั้น
+} else if (!r.comManual){
       // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
       r.com = ((CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin') && Tiers.type==='mobile')
         ? BranchTiers.daily(r.sales, r.branch)
@@ -1209,9 +1227,11 @@ const r=this.rows[i];
       const inp=e.target.closest('input'); if(!inp) return;
       const tr=inp.closest('tr');
       const i=+tr.dataset.i, f=inp.dataset.f, r=this.rows[i];
-      if (f==='in'||f==='out'){
-        r[f]=inp.value;
-      } else if (f==='otH' || f==='otM'){
+      if (f==='noCom'){
+r.noCom = inp.checked;
+} else if (f==='in'||f==='out'){
+r[f]=inp.value;
+} else if (f==='otH' || f==='otM'){
         const hInp=tr.querySelector('[data-f="otH"]'), mInp=tr.querySelector('[data-f="otM"]');
         r.ot = U.num(hInp.value) + U.num(mInp.value)/60;
         r.otManual = (hInp.value.trim()!=='' || mInp.value.trim()!=='');
@@ -1248,6 +1268,7 @@ const r=this.rows[i];
     U.$('excelCancelBtn').onclick = () => this.cancelExcelImport();
 
     U.$('dailyClearBtn').onclick = () => this.clearMonth();
+U.$('dailySaveBtn').onclick = () => this.saveNow();
   },
 
   refreshRow(i){
@@ -1261,6 +1282,8 @@ const r=this.rows[i];
     otH.classList.toggle('is-manual', r.otManual);
     otM.classList.toggle('is-manual', r.otManual);
     com.classList.toggle('is-manual', r.comManual);
+com.disabled = !!r.noCom;
+const nc=tr.querySelector('[data-f="noCom"]'); if (nc) nc.checked = !!r.noCom;
     tr.querySelector('[data-reset]').hidden = !(r.otManual||r.comManual);
   },
 
