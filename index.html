@@ -292,8 +292,8 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
           <tr>
             <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
             <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม. : นาที)</th>
-            <th class="pmobile-only">สาขา</th>
-            <th>คอมรายวัน</th><th>ไม่รับคอม</th>
+            <th>คอมสาขา</th>
+<th>คอมรายวัน</th><th>ไม่เข้างาน</th>
           </tr>
         </thead>
         <tbody id="dailyBody"></tbody>
@@ -303,8 +303,8 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
             <th id="sumSales">0</th><th id="sumCases">0</th>
             <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span></th>
             <th id="sumOt">0.00</th>
-            <th class="pmobile-only"></th>
-            <th id="sumCom">0.00</th><th></th>
+            <th></th>
+<th id="sumCom">0.00</th><th></th>
           </tr>
         </tfoot>
       </table>
@@ -1130,14 +1130,14 @@ const Daily = {
             <input class="in-num ot-m ${r.otManual?'is-manual':''}" data-f="otM" type="number" min="0" max="59" step="1" placeholder="นาที" value="${otM||''}">
           </div>
         </td>
-        <td class="pmobile-only">
-          <select class="role-select branch-select" data-f="branch">
+        <td>
+<select class="role-select branch-select" data-f="branch">
             <option value="">-</option>
             ${CONFIG.BRANCHES.map(b=>`<option value="${b}" ${String(r.branch)===String(b)?'selected':''}>สาขา ${b}</option>`).join('')}
           </select>
         </td>
         <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}" ${r.noCom?'disabled':''}></td>
-<td class="nocom-cell"><label class="nocom-lbl" title="วันหยุด/ไม่ได้ค่าคอมวันนี้"><input type="checkbox" data-f="noCom" ${r.noCom?'checked':''}></label> <button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
+<td class="nocom-cell"><label class="nocom-lbl" title="ไม่เข้างาน (วันหยุด) — ไม่ได้ค่าคอมวันนี้"><input type="checkbox" data-f="noCom" ${r.noCom?'checked':''}></label> <button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
       </tr>`;
     }).join('');
     this.updateOtHint();
