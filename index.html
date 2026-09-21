@@ -643,6 +643,7 @@ const CONFIG = {
     vacation:      [3,3,3,3,2,2,2,2,1,1,1,1]
   },
 
+  NO_CARRY_YEARS: [2026], // ปีที่ "ไม่ยกยอดวันหยุดสะสม" ไปปีถัดไป (ยกไป = 0 ทุกคน) — เริ่มสะสมใหม่ตั้งแต่ปีถัดจากนั้น
   MONTHLY_OFF_DAYS: 6, // วันหยุดประจำเดือน (staff/เภสัชกร เท่ากัน) — ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มในวันหยุดสะสม
   OFF_LEFT_KEY: 'off_left', // key ใน leaveUsed:{ปี} เก็บ "วันหยุดที่เหลือสะสม" ของแต่ละเดือน (เจ้าของกรอกตรงๆ, 0-MONTHLY_OFF_DAYS, null = ยังไม่กรอกเดือนนั้น)
   MONTH_LABELS_TH: ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
@@ -1701,8 +1702,9 @@ const LeaveCalc = {
    *  − Σ(วันสะสมที่ใช้ไป เดือน 1..i)
    *  ระหว่างปีไม่ตัดเพดาน — เพดาน (carryCap) ใช้ตอนยกไปปีหน้าเท่านั้น ส่วนที่เกินแลกเป็นเงินเดือน ธ.ค.
    *  srcData = data ของ rule poolFrom จาก build() (ถ้าล็อกอยู่/ไม่มี = 0) */
-  buildAccum(rule, carry, usedMap, srcData){
+  buildAccum(rule, carry, usedMap, srcData, year){
     const cap = rule.carryCap ?? 0;
+    const noCarry = (CONFIG.NO_CARRY_YEARS || []).includes(year);
     const rawLeft = (usedMap && usedMap[CONFIG.OFF_LEFT_KEY]) || [];
     const leftRaw = Array.from({length:12}, (_,i)=>{ const v = rawLeft[i]; return (v===null || v===undefined || v==='') ? null : Math.min(CONFIG.MONTHLY_OFF_DAYS, Math.max(0, U.num(v))); });
     const used = Array.from({length:12}, (_,i)=> U.num(((usedMap && usedMap[rule.key]) || [])[i]));
@@ -1716,7 +1718,7 @@ const LeaveCalc = {
     }
     const balance = remain[11];
     return { quota:carry, used, leftRaw, remain, locked:false, balance, lastIdx, isFinal:leftRaw[11] !== null,
-      cashout:Math.max(0, balance - cap), carryNext:Math.max(0, Math.min(balance, cap)) };
+      cashout:Math.max(0, balance - cap), carryNext: noCarry ? 0 : Math.max(0, Math.min(balance, cap)), noCarry };
   },
 
   /** ยอดยกมาต้นปี targetYear ของวันหยุดสะสม ต่อสายจากผลสิ้นปีของปีก่อนๆ
@@ -1753,7 +1755,7 @@ const LeaveCalc = {
     });
     // วันหยุดสะสมคำนวณหลังสุด เพราะต้องรวมคงเหลือของ rule แหล่งสะสม (poolFrom)
     accumRules.forEach(({ rule, q, locked })=>{
-      data[rule.key] = this.buildAccum(rule, locked ? 0 : q, usedMap, data[rule.poolFrom]);
+      data[rule.key] = this.buildAccum(rule, locked ? 0 : q, usedMap, data[rule.poolFrom], year);
     });
     return { rules, hireYm, data };
   },
@@ -1944,7 +1946,7 @@ const Leave = {
     const src = rule.poolFrom === 'vacation' ? 'ลาพักผ่อน' : 'วันหยุดพิเศษประจำปี';
     el.textContent = `วันหยุดสะสม: ช่อง (+) = วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (เดือนละ ${CONFIG.MONTHLY_OFF_DAYS} วัน) ช่อง (−) = วันสะสมที่ใช้ไป — ยอดคงเหลือรวม${src}ที่ยังไม่ได้ใช้ | `
       + `ยอดยกมาต้นปี ${fmt(a.quota)} วัน${this.carryOverride === null ? ' (ดึงจากปีก่อนอัตโนมัติ)' : ' (กรอกเอง — ล้างช่อง "สิทธิ์ทั้งปี" เพื่อใช้ค่าอัตโนมัติ)'} | `
-      + `ยอดรวมสิ้นปี${a.isFinal ? '' : ' (ประมาณการ)'} ${fmt(a.balance)} วัน → แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน (เพดานยกไป ${rule.carryCap} วัน)`;
+      + `ยอดรวมสิ้นปี${a.isFinal ? '' : ' (ประมาณการ)'} ${fmt(a.balance)} วัน → แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน${a.noCarry ? ' (ปีนี้ไม่ยกยอด — เริ่มสะสมใหม่ปีหน้า)' : ` (เพดานยกไป ${rule.carryCap} วัน)`}`;
   },
 
   rulesForRoleAccum(){
