@@ -641,7 +641,7 @@ const CONFIG = {
   },
 
   MONTHLY_OFF_DAYS: 6, // วันหยุดประจำเดือน (staff/เภสัชกร เท่ากัน) — ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มในวันหยุดสะสม
-  OFF_USED_KEY: 'off_used', // key ใน leaveUsed:{ปี} เก็บ "วันหยุดที่ใช้จริง" รายเดือน (null = ยังไม่กรอกเดือนนั้น)
+  OFF_LEFT_KEY: 'off_left', // key ใน leaveUsed:{ปี} เก็บ "วันหยุดที่เหลือสะสม" ของแต่ละเดือน (เจ้าของกรอกตรงๆ, 0-MONTHLY_OFF_DAYS, null = ยังไม่กรอกเดือนนั้น)
   MONTH_LABELS_TH: ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 };
 
@@ -1692,19 +1692,19 @@ const LeaveCalc = {
     return hireYm.y + (rule.tenureYear - 1);
   },
 
-  /** วันหยุดสะสม: ยอดคงเหลือ = ยกมาต้นปี + Σ(วันหยุดประจำเดือน − วันหยุดที่ใช้จริง) เฉพาะเดือนที่กรอกแล้ว
+  /** วันหยุดสะสม: ยอดคงเหลือ = ยกมาต้นปี + Σ(วันหยุดที่เหลือสะสมของแต่ละเดือน ที่เจ้าของกรอกตรงๆ) เฉพาะเดือนที่กรอกแล้ว
   * ระหว่างปีไม่ตัดเพดาน — เพดาน (carryCap) ใช้ตอนยกไปปีหน้าเท่านั้น ส่วนที่เกินแลกเป็นเงินเดือน ธ.ค. */
   buildAccum(rule, carry, usedMap){
-    const raw = (usedMap && usedMap[CONFIG.OFF_USED_KEY]) || [];
-    const usedRaw = Array.from({length:12}, (_,i)=>{ const v = raw[i]; return (v===null || v===undefined || v==='') ? null : U.num(v); });
+    const raw = (usedMap && usedMap[CONFIG.OFF_LEFT_KEY]) || [];
+    const leftRaw = Array.from({length:12}, (_,i)=>{ const v = raw[i]; return (v===null || v===undefined || v==='') ? null : Math.min(CONFIG.MONTHLY_OFF_DAYS, Math.max(0, U.num(v))); });
     const remain = []; let running = carry, lastIdx = -1;
     for (let i=0;i<12;i++){
-      if (usedRaw[i] !== null){ running += CONFIG.MONTHLY_OFF_DAYS - usedRaw[i]; lastIdx = i; }
+      if (leftRaw[i] !== null){ running += leftRaw[i]; lastIdx = i; }
       remain.push(running);
     }
     const cap = rule.carryCap ?? 0;
-    return { quota:carry, used:usedRaw.map(v=>v ?? 0), usedRaw, remain, locked:false,
-      balance:running, lastIdx, isFinal:usedRaw[11] !== null,
+    return { quota:carry, used:leftRaw.map(v=>v ?? 0), leftRaw, remain, locked:false,
+      balance:running, lastIdx, isFinal:leftRaw[11] !== null,
       cashout:Math.max(0, running - cap), carryNext:Math.max(0, Math.min(running, cap)) };
   },
 
@@ -1820,7 +1820,7 @@ const Leave = {
         : (d.locked ? '-' : d.quota);
       const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
         const remain = d.remain[i];
-        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key==='accum_holiday' ? CONFIG.OFF_USED_KEY : rule.key}" data-m="${i}" min="0" step="0.5" value="${rule.key==='accum_holiday' ? (d.usedRaw[i] ?? '') : (d.used[i]||'')}"></td>
+        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key==='accum_holiday' ? CONFIG.OFF_LEFT_KEY : rule.key}" data-m="${i}" min="0" ${rule.key==='accum_holiday' ? `max="${CONFIG.MONTHLY_OFF_DAYS}" title="วันหยุดที่เหลือสะสมเดือนนี้ (ไม่เกิน ${CONFIG.MONTHLY_OFF_DAYS} วัน)"` : ''} step="0.5" value="${rule.key==='accum_holiday' ? (d.leftRaw[i] ?? '') : (d.used[i]||'')}"></td>
                 <td class="leave-remain${remain<0?' neg':''}" data-remain-key="${rule.key}" data-remain-m="${i}">${remain}</td>`;
       }).join('');
       return `<tr class="${d.locked?'leave-locked':''}" data-rule="${rule.key}">
@@ -1868,8 +1868,8 @@ const Leave = {
       const usedInp = e.target.closest('.leave-used-input');
       if (usedInp){
         const key = usedInp.dataset.key, m = +usedInp.dataset.m;
-        if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(key === CONFIG.OFF_USED_KEY ? null : 0);
-        this.usedMap[key][m] = (usedInp.value === '' && key === CONFIG.OFF_USED_KEY) ? null : U.num(usedInp.value);
+        if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(key === CONFIG.OFF_LEFT_KEY ? null : 0);
+        this.usedMap[key][m] = (usedInp.value === '' && key === CONFIG.OFF_LEFT_KEY) ? null : U.num(usedInp.value);
         this.saveUsed();
         this.recalcAndRepaint();
       }
@@ -1884,7 +1884,7 @@ const Leave = {
     if (!rule || !a){ el.textContent = ''; return; }
     const fmt = (n)=> Number.isInteger(n) ? n : n.toFixed(1);
     if (a.lastIdx < 0){
-      el.textContent = `วันหยุดสะสม: กรอก "วันหยุดที่ใช้จริง" ของแต่ละเดือน (วันหยุดประจำเดือน ${CONFIG.MONTHLY_OFF_DAYS} วัน ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มให้เอง)`;
+      el.textContent = `วันหยุดสะสม: กรอก "วันหยุดที่เหลือสะสม" ของแต่ละเดือนในแถววันหยุดสะสม (เช่น วันหยุดประจำเดือน ${CONFIG.MONTHLY_OFF_DAYS} วัน ใช้ 5 วัน เหลือ 1 วัน ให้กรอก 1)`;
       return;
     }
     el.textContent = `วันหยุดสะสมถึงเดือน${CONFIG.MONTH_LABELS_TH[a.lastIdx]}: ${fmt(a.balance)} วัน — `
@@ -2006,7 +2006,7 @@ const AdminLeave = {
         const d = built.data[r.key];
         if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
         const isAcc = r.key === 'accum_holiday';
-        const used = isAcc ? (d.usedRaw[mi] ?? '') : (d.used[mi] || 0);
+        const used = isAcc ? (d.leftRaw[mi] ?? '') : (d.used[mi] || 0);
         const remain = d.remain[mi];
         return `<td class="month-sep">${used}</td><td class="leave-remain${remain<0?' neg':''}">${remain}${isAcc && this.month===12 && d.cashout>0 ? ` <span class="hint">(แลกเงิน ${d.cashout} วัน)</span>` : ''}</td>`;
       }).join('');
