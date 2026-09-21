@@ -611,9 +611,9 @@ const CONFIG = {
   //   (ดู LeaveCalc.effectiveQuota / LeaveCalc.build พารามิเตอร์ priorUsed) — ถ้าใช้ครบแล้วจะเหลือ 0 ตลอดไป ไม่กลับมาเต็มอีก
   LEAVE_RULES: {
     pharmacist: [
-      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + วันหยุดพิเศษประจำปีที่ไม่ได้ใช้ ยกไปปีหน้าไม่เกิน 7 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:7, poolFrom:'public_holiday' },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + วันหยุดพิเศษประจำปีที่ไม่ได้ใช้<br>ยกไปปีหน้าไม่เกิน 7 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:7, poolFrom:'public_holiday' },
       { key:'sick_with_doc',      label:'ลาป่วย (มีใบ)',            cond:'-', quota:10 },
-      { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'ส่วนที่ไม่ได้ใช้รวมเข้าวันหยุดสะสม', quota:13 },
+      { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'ส่วนที่ไม่ได้ใช้<br>รวมเข้าวันหยุดสะสม', quota:13 },
       { key:'personal_vacation',  label:'ลาป่วย (ไม่มีใบ)/ลากิจ/ลาพักผ่อน',         cond:'-', quota:10 },
       { key:'marriage',          label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3, onceOnly:true },
       { key:'maternity',          label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
@@ -621,12 +621,12 @@ const CONFIG = {
       { key:'funeral',            label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ],
     staff: [
-      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + ลาพักผ่อนที่ไม่ได้ใช้ ยกไปปีหน้าไม่เกิน 6 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:6, poolFrom:'vacation' },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + ลาพักผ่อนที่ไม่ได้ใช้<br>ยกไปปีหน้าไม่เกิน 6 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:6, poolFrom:'vacation' },
       { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',            cond:'ผ่านทดลองงาน',   quota:10, tenureYear:1 },
       { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',         cond:'เข้าปีที่ 2',     quota:5,  tenureYear:2 },
       { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
       { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3, onceOnly:true },
-      { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4 (ส่วนที่ไม่ได้ใช้รวมเข้าวันหยุดสะสม)',     quota:3,  tenureYear:4 },
+      { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4<br>(ส่วนที่ไม่ได้ใช้รวมเข้าวันหยุดสะสม)',     quota:3,  tenureYear:4 },
       { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
       { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male', onceOnly:true },
       { key:'funeral',       label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
