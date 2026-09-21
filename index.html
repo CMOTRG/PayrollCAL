@@ -459,6 +459,7 @@ table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
           <tbody id="leaveQuotaBody"></tbody>
         </table>
       </div>
+      <p class="hint" id="leaveAccumSummary"></p>
       <p class="hint" id="leaveQuotaNote"></p>
     </div>
 
@@ -607,7 +608,7 @@ const CONFIG = {
   //   (ดู LeaveCalc.effectiveQuota / LeaveCalc.build พารามิเตอร์ priorUsed) — ถ้าใช้ครบแล้วจะเหลือ 0 ตลอดไป ไม่กลับมาเต็มอีก
   LEAVE_RULES: {
     pharmacist: [
-      { key:'accum_holiday',      label:'วันหยุดสะสมจากปีก่อนหน้า', cond:'สะสมสูงสุดไม่เกิน 7 วัน', quota:null, carryCap:7 },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'ยกไปปีหน้าไม่เกิน 7 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:7 },
       { key:'sick_with_doc',      label:'ลาป่วย (มีใบ)',            cond:'-', quota:10 },
       { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'-', quota:13 },
       { key:'personal_vacation',  label:'วันลากิจ พักผ่อน',         cond:'-', quota:10 },
@@ -617,7 +618,7 @@ const CONFIG = {
       { key:'funeral',            label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ],
     staff: [
-      { key:'accum_holiday', label:'วันหยุดสะสมจากปีก่อนหน้า', cond:'ไม่เกิน 6 วัน',   quota:null, carryCap:6 },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'ยกไปปีหน้าไม่เกิน 6 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:6 },
       { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',            cond:'ผ่านทดลองงาน',   quota:10, tenureYear:1 },
       { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',         cond:'เข้าปีที่ 2',     quota:5,  tenureYear:2 },
       { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
@@ -639,6 +640,8 @@ const CONFIG = {
     vacation:      [3,3,3,3,2,2,2,2,1,1,1,1]
   },
 
+  MONTHLY_OFF_DAYS: 6, // วันหยุดประจำเดือน (staff/เภสัชกร เท่ากัน) — ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มในวันหยุดสะสม
+  OFF_USED_KEY: 'off_used', // key ใน leaveUsed:{ปี} เก็บ "วันหยุดที่ใช้จริง" รายเดือน (null = ยังไม่กรอกเดือนนั้น)
   MONTH_LABELS_TH: ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 };
 
@@ -1689,6 +1692,22 @@ const LeaveCalc = {
     return hireYm.y + (rule.tenureYear - 1);
   },
 
+  /** วันหยุดสะสม: ยอดคงเหลือ = ยกมาต้นปี + Σ(วันหยุดประจำเดือน − วันหยุดที่ใช้จริง) เฉพาะเดือนที่กรอกแล้ว
+  * ระหว่างปีไม่ตัดเพดาน — เพดาน (carryCap) ใช้ตอนยกไปปีหน้าเท่านั้น ส่วนที่เกินแลกเป็นเงินเดือน ธ.ค. */
+  buildAccum(rule, carry, usedMap){
+    const raw = (usedMap && usedMap[CONFIG.OFF_USED_KEY]) || [];
+    const usedRaw = Array.from({length:12}, (_,i)=>{ const v = raw[i]; return (v===null || v===undefined || v==='') ? null : U.num(v); });
+    const remain = []; let running = carry, lastIdx = -1;
+    for (let i=0;i<12;i++){
+      if (usedRaw[i] !== null){ running += CONFIG.MONTHLY_OFF_DAYS - usedRaw[i]; lastIdx = i; }
+      remain.push(running);
+    }
+    const cap = rule.carryCap ?? 0;
+    return { quota:carry, used:usedRaw.map(v=>v ?? 0), usedRaw, remain, locked:false,
+      balance:running, lastIdx, isFinal:usedRaw[11] !== null,
+      cashout:Math.max(0, running - cap), carryNext:Math.max(0, Math.min(running, cap)) };
+  },
+
   /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ
    *  priorUsedTotals: { [ruleKey]: N } ยอดใช้สะสมจากทุกปีก่อนหน้า (เฉพาะ rule ที่ onceOnly:true) */
   build(role, hireDateStr, carryDays, usedMap, year, gender, priorUsedTotals={}){
@@ -1698,6 +1717,10 @@ const LeaveCalc = {
     rules.forEach(rule=>{
       const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender, priorUsedTotals[rule.key]);
       const locked = q === null;
+      if (rule.key === 'accum_holiday'){
+        data[rule.key] = this.buildAccum(rule, locked ? 0 : q, usedMap);
+        return;
+      }
       const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
       const remain = []; let running = locked ? 0 : q;
       for (let i=0;i<12;i++){ running -= used[i]; remain.push(running); }
@@ -1789,6 +1812,7 @@ const Leave = {
     }
 
     const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender, this.priorUsedTotals);
+    this.paintAccumSummary(built);
     U.$('leaveQuotaBody').innerHTML = built.rules.map(rule=>{
       const d = built.data[rule.key];
       const quotaCell = rule.key === 'accum_holiday'
@@ -1796,7 +1820,7 @@ const Leave = {
         : (d.locked ? '-' : d.quota);
       const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
         const remain = d.remain[i];
-        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" value="${d.used[i]||''}"></td>
+        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key==='accum_holiday' ? CONFIG.OFF_USED_KEY : rule.key}" data-m="${i}" min="0" step="0.5" value="${rule.key==='accum_holiday' ? (d.usedRaw[i] ?? '') : (d.used[i]||'')}"></td>
                 <td class="leave-remain${remain<0?' neg':''}" data-remain-key="${rule.key}" data-remain-m="${i}">${remain}</td>`;
       }).join('');
       return `<tr class="${d.locked?'leave-locked':''}" data-rule="${rule.key}">
@@ -1844,12 +1868,28 @@ const Leave = {
       const usedInp = e.target.closest('.leave-used-input');
       if (usedInp){
         const key = usedInp.dataset.key, m = +usedInp.dataset.m;
-        if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(0);
-        this.usedMap[key][m] = U.num(usedInp.value);
+        if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(key === CONFIG.OFF_USED_KEY ? null : 0);
+        this.usedMap[key][m] = (usedInp.value === '' && key === CONFIG.OFF_USED_KEY) ? null : U.num(usedInp.value);
         this.saveUsed();
         this.recalcAndRepaint();
       }
     });
+  },
+
+  /** สรุปวันหยุดสะสม: ยอดล่าสุด, ส่วนที่แลกเป็นเงิน และยอดยกไปปีหน้า (เพดาน = carryCap) */
+  paintAccumSummary(built){
+    const el = U.$('leaveAccumSummary'); if (!el) return;
+    const rule = built.rules.find(r=>r.key==='accum_holiday');
+    const a = built.data['accum_holiday'];
+    if (!rule || !a){ el.textContent = ''; return; }
+    const fmt = (n)=> Number.isInteger(n) ? n : n.toFixed(1);
+    if (a.lastIdx < 0){
+      el.textContent = `วันหยุดสะสม: กรอก "วันหยุดที่ใช้จริง" ของแต่ละเดือน (วันหยุดประจำเดือน ${CONFIG.MONTHLY_OFF_DAYS} วัน ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มให้เอง)`;
+      return;
+    }
+    el.textContent = `วันหยุดสะสมถึงเดือน${CONFIG.MONTH_LABELS_TH[a.lastIdx]}: ${fmt(a.balance)} วัน — `
+      + (a.isFinal ? '' : 'ประมาณการหากสิ้นปีเท่านี้: ')
+      + `แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน (เพดานยกไป ${rule.carryCap} วัน)`;
   },
 
   rulesForRoleAccum(){
@@ -1861,6 +1901,7 @@ const Leave = {
   recalcAndRepaint(){
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
     const built = LeaveCalc.build(role, this.hireDate, this.carryDays, this.usedMap, this.year, this.gender, this.priorUsedTotals);
+    this.paintAccumSummary(built);
     built.rules.forEach(rule=>{
       const d = built.data[rule.key];
       for (let i=0;i<12;i++){
@@ -1964,9 +2005,10 @@ const AdminLeave = {
       const cells = rules.map(r=>{
         const d = built.data[r.key];
         if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
-        const used = d.used[mi] || 0;
+        const isAcc = r.key === 'accum_holiday';
+        const used = isAcc ? (d.usedRaw[mi] ?? '') : (d.used[mi] || 0);
         const remain = d.remain[mi];
-        return `<td class="month-sep">${used}</td><td class="leave-remain${remain<0?' neg':''}">${remain}</td>`;
+        return `<td class="month-sep">${used}</td><td class="leave-remain${remain<0?' neg':''}">${remain}${isAcc && this.month===12 && d.cashout>0 ? ` <span class="hint">(แลกเงิน ${d.cashout} วัน)</span>` : ''}</td>`;
       }).join('');
       return `<tr>
         <td>${p.full_name||'-'}</td>
