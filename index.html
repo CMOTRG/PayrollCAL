@@ -93,6 +93,9 @@ table.leave-grid tr.leave-locked input{pointer-events:none}
 table.leave-grid td.leave-remain{font-variant-numeric:tabular-nums}
 table.leave-grid td.leave-remain.neg{color:var(--err); font-weight:700}
 
+table.leave-grid .leave-pair{display:flex; gap:2px; justify-content:center}
+table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
+
 /* ---- Tiers tab: card-grid layout for commission steps ---- */
 .tier-tab h3{margin-bottom:6px}
 .tier-tab > .hint{margin-top:0; margin-bottom:20px}
@@ -592,7 +595,7 @@ const CONFIG = {
   BRANCHES: [1,2,3,4,5,6,7,8,9],
 
   // สิทธิ์วันลา/วันหยุด — คัดลอกมาจากไฟล์ Excel "คำนวณวันหยุด.xlsx" (แผ่นงาน staff / pharmacist) ตรงตัว
-  // accum_holiday: วันหยุดสะสมข้ามปี — ไม่ใช่โควตาคงที่ ผู้ใช้กรอก "จำนวน (วัน)" เองทุกปี (เพดานดู carryCap)
+  // accum_holiday: วันหยุดสะสมข้ามปี — ไม่ใช่โควตาคงที่ ยอดยกมาดึงจากผลสิ้นปีก่อนอัตโนมัติ (กรอกทับเองได้) รวมวันหยุดประจำเดือนที่เหลือ + ส่วนที่ไม่ได้ใช้ของ poolFrom (เพดานยกไปดู carryCap)
   // tenureYear: อายุงานนับจาก "วันแรกที่เริ่มงานจริง" (ปี/เดือนที่เริ่มงาน) — ประเภทนี้เปิดใช้ทันทีที่ครบ
   //   (tenureYear-1) ปีเต็มนับจากวันเริ่มงาน (1 = เปิดใช้ตั้งแต่วันแรก/เข้าปีที่ 1, 2 = เปิดใช้เมื่อทำงานครบ 1 ปี
   //   /เข้าปีที่ 2, 3 = ครบ 2 ปี/เข้าปีที่ 3, 4 = ครบ 3 ปี/เข้าปีที่ 4 ฯลฯ)
@@ -608,22 +611,22 @@ const CONFIG = {
   //   (ดู LeaveCalc.effectiveQuota / LeaveCalc.build พารามิเตอร์ priorUsed) — ถ้าใช้ครบแล้วจะเหลือ 0 ตลอดไป ไม่กลับมาเต็มอีก
   LEAVE_RULES: {
     pharmacist: [
-      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'ยกไปปีหน้าไม่เกิน 7 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:7 },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + วันหยุดพิเศษประจำปีที่ไม่ได้ใช้ ยกไปปีหน้าไม่เกิน 7 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:7, poolFrom:'public_holiday' },
       { key:'sick_with_doc',      label:'ลาป่วย (มีใบ)',            cond:'-', quota:10 },
-      { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'-', quota:13 },
-      { key:'personal_vacation',  label:'วันลากิจ พักผ่อน',         cond:'-', quota:10 },
+      { key:'public_holiday',     label:'วันหยุดพิเศษประจำปี',      cond:'ส่วนที่ไม่ได้ใช้รวมเข้าวันหยุดสะสม', quota:13 },
+      { key:'personal_vacation',  label:'ลาป่วย (ไม่มีใบ)/ลากิจ/ลาพักผ่อน',         cond:'-', quota:10 },
       { key:'marriage',          label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3, onceOnly:true },
       { key:'maternity',          label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
       { key:'ordination',         label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male', onceOnly:true },
       { key:'funeral',            label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
     ],
     staff: [
-      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'ยกไปปีหน้าไม่เกิน 6 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:6 },
+      { key:'accum_holiday', label:'วันหยุดสะสม', cond:'รวมวันหยุดประจำเดือนที่เหลือ + ลาพักผ่อนที่ไม่ได้ใช้ ยกไปปีหน้าไม่เกิน 6 วัน (ส่วนเกินแลกเป็นเงิน ธ.ค.)', quota:null, carryCap:6, poolFrom:'vacation' },
       { key:'sick_with_doc', label:'ลาป่วย (มีใบ)',            cond:'ผ่านทดลองงาน',   quota:10, tenureYear:1 },
       { key:'sick_no_doc',   label:'ลาป่วย (ไม่มีใบ)',         cond:'เข้าปีที่ 2',     quota:5,  tenureYear:2 },
       { key:'personal',      label:'ลากิจ',                   cond:'เข้าปีที่ 3',     quota:5,  tenureYear:3 },
       { key:'marriage',      label:'ลาสมรส',                  cond:'เข้าปีที่ 3',     quota:3,  tenureYear:3, onceOnly:true },
-      { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4',     quota:3,  tenureYear:4 },
+      { key:'vacation',      label:'ลาพักผ่อน',               cond:'เข้าปีที่ 4 (ส่วนที่ไม่ได้ใช้รวมเข้าวันหยุดสะสม)',     quota:5,  tenureYear:4 },
       { key:'maternity',     label:'ลาคลอด',                  cond:'เข้าปีที่ 4',     quota:30, tenureYear:4, genderOnly:'female' },
       { key:'ordination',    label:'ลาอุปสมบท',               cond:'เข้าปีที่ 4',     quota:7,  tenureYear:4, genderOnly:'male', onceOnly:true },
       { key:'funeral',       label:'ลาจัดการงานศพ',           cond:'ผ่านทดลองงาน',   quota:3,  tenureYear:1 }
@@ -1692,39 +1695,65 @@ const LeaveCalc = {
     return hireYm.y + (rule.tenureYear - 1);
   },
 
-  /** วันหยุดสะสม: ยอดคงเหลือ = ยกมาต้นปี + Σ(วันหยุดที่เหลือสะสมของแต่ละเดือน ที่เจ้าของกรอกตรงๆ) เฉพาะเดือนที่กรอกแล้ว
-  * ระหว่างปีไม่ตัดเพดาน — เพดาน (carryCap) ใช้ตอนยกไปปีหน้าเท่านั้น ส่วนที่เกินแลกเป็นเงินเดือน ธ.ค. */
-  buildAccum(rule, carry, usedMap){
-    const raw = (usedMap && usedMap[CONFIG.OFF_LEFT_KEY]) || [];
-    const leftRaw = Array.from({length:12}, (_,i)=>{ const v = raw[i]; return (v===null || v===undefined || v==='') ? null : Math.min(CONFIG.MONTHLY_OFF_DAYS, Math.max(0, U.num(v))); });
+  /** วันหยุดสะสม (กองเดียว): คงเหลือ ณ เดือน i = ยอดยกมาต้นปี
+   *  + Σ(วันหยุดประจำเดือนที่เหลือ "เก็บเพิ่ม" เดือน 1..i ที่เจ้าของกรอก)
+   *  + คงเหลือของ rule แหล่งสะสม (poolFrom: staff=ลาพักผ่อน, pharmacist=วันหยุดพิเศษประจำปี) ณ เดือน i
+   *  − Σ(วันสะสมที่ใช้ไป เดือน 1..i)
+   *  ระหว่างปีไม่ตัดเพดาน — เพดาน (carryCap) ใช้ตอนยกไปปีหน้าเท่านั้น ส่วนที่เกินแลกเป็นเงินเดือน ธ.ค.
+   *  srcData = data ของ rule poolFrom จาก build() (ถ้าล็อกอยู่/ไม่มี = 0) */
+  buildAccum(rule, carry, usedMap, srcData){
+    const cap = rule.carryCap ?? 0;
+    const rawLeft = (usedMap && usedMap[CONFIG.OFF_LEFT_KEY]) || [];
+    const leftRaw = Array.from({length:12}, (_,i)=>{ const v = rawLeft[i]; return (v===null || v===undefined || v==='') ? null : Math.min(CONFIG.MONTHLY_OFF_DAYS, Math.max(0, U.num(v))); });
+    const used = Array.from({length:12}, (_,i)=> U.num(((usedMap && usedMap[rule.key]) || [])[i]));
+    const src = (srcData && !srcData.locked) ? srcData.remain : Array(12).fill(0);
     const remain = []; let running = carry, lastIdx = -1;
     for (let i=0;i<12;i++){
-      if (leftRaw[i] !== null){ running += leftRaw[i]; lastIdx = i; }
-      remain.push(running);
+      if (leftRaw[i] !== null) running += leftRaw[i];
+      running -= used[i];
+      if (leftRaw[i] !== null || used[i] > 0) lastIdx = i;
+      remain.push(running + U.num(src[i]));
     }
-    const cap = rule.carryCap ?? 0;
-    return { quota:carry, used:leftRaw.map(v=>v ?? 0), leftRaw, remain, locked:false,
-      balance:running, lastIdx, isFinal:leftRaw[11] !== null,
-      cashout:Math.max(0, running - cap), carryNext:Math.max(0, Math.min(running, cap)) };
+    const balance = remain[11];
+    return { quota:carry, used, leftRaw, remain, locked:false, balance, lastIdx, isFinal:leftRaw[11] !== null,
+      cashout:Math.max(0, balance - cap), carryNext:Math.max(0, Math.min(balance, cap)) };
+  },
+
+  /** ยอดยกมาต้นปี targetYear ของวันหยุดสะสม ต่อสายจากผลสิ้นปีของปีก่อนๆ
+   *  yearsData: [{year, carryOverride(number|null), used(map)}] เรียงจากปีเก่า→ใหม่ ต่อเนื่องและจบที่ปีก่อน targetYear
+   *  ปีที่เจ้าของกรอกยอดยกมาเอง (carryOverride) ใช้ค่านั้นเป็นจุดตั้งต้นของปีนั้นแทนผลปีก่อน */
+  chainCarry(role, hireDateStr, gender, yearsData, targetYear){
+    const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
+    const cap = rules.find(r=>r.key==='accum_holiday')?.carryCap ?? 0;
+    let carry = 0;
+    for (const yd of (yearsData || [])){
+      if (yd.carryOverride !== null && yd.carryOverride !== undefined) carry = Math.max(0, Math.min(U.num(yd.carryOverride), cap));
+      const built = this.build(role, hireDateStr, carry, yd.used || {}, yd.year, gender, {});
+      carry = built.data.accum_holiday.carryNext;
+    }
+    return carry;
   },
 
   /** { rules, hireYm, data:{ [ruleKey]:{quota,used[12],remain[12],locked} } } ของคนคนหนึ่งในปีที่ระบุ
+   *  carryDays = ยอดยกมาต้นปีของวันหยุดสะสม (ค่าที่ใช้จริง: กรอกทับเองหรือดึงจากปีก่อน)
    *  priorUsedTotals: { [ruleKey]: N } ยอดใช้สะสมจากทุกปีก่อนหน้า (เฉพาะ rule ที่ onceOnly:true) */
   build(role, hireDateStr, carryDays, usedMap, year, gender, priorUsedTotals={}){
     const rules = role === 'pharmacist' ? CONFIG.LEAVE_RULES.pharmacist : CONFIG.LEAVE_RULES.staff;
     const hireYm = this.parseDate(hireDateStr);
     const data = {};
+    const accumRules = [];
     rules.forEach(rule=>{
       const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender, priorUsedTotals[rule.key]);
       const locked = q === null;
-      if (rule.key === 'accum_holiday'){
-        data[rule.key] = this.buildAccum(rule, locked ? 0 : q, usedMap);
-        return;
-      }
+      if (rule.key === 'accum_holiday'){ accumRules.push({ rule, q, locked }); return; }
       const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
       const remain = []; let running = locked ? 0 : q;
       for (let i=0;i<12;i++){ running -= used[i]; remain.push(running); }
       data[rule.key] = { quota: locked?0:q, used, remain, locked };
+    });
+    // วันหยุดสะสมคำนวณหลังสุด เพราะต้องรวมคงเหลือของ rule แหล่งสะสม (poolFrom)
+    accumRules.forEach(({ rule, q, locked })=>{
+      data[rule.key] = this.buildAccum(rule, locked ? 0 : q, usedMap, data[rule.poolFrom]);
     });
     return { rules, hireYm, data };
   },
@@ -1742,6 +1771,8 @@ const Leave = {
   hireDate: '',
   gender: '',
   carryDays: 0,
+  carryOverride: null, // ยอดยกมาที่เจ้าของกรอกทับเอง (null = ใช้ค่าอัตโนมัติจากปีก่อน)
+  autoCarry: 0,
   usedMap: {},
   priorUsedTotals: {},
   GENDER_LABEL: { male:'ชาย', female:'หญิง' },
@@ -1753,10 +1784,12 @@ const Leave = {
     const g = await Store.getUser('gender', null);
     this.gender = g?.value || '';
     const carry = await Store.getUser(`leaveCarry:${this.year}`, null);
-    this.carryDays = U.num(carry?.days);
+    this.carryOverride = (carry && carry.days !== null && carry.days !== undefined && carry.days !== '') ? U.num(carry.days) : null;
     this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
     this.priorUsedTotals = await this.computePriorUsedTotals(role);
+    this.autoCarry = await this.computeAutoCarry(role);
+    this.carryDays = this.carryOverride ?? this.autoCarry;
     this.render();
   },
 
@@ -1780,7 +1813,20 @@ const Leave = {
     return totals;
   },
 
-  saveCarry: U.debounce(()=>{ Store.setUser(`leaveCarry:${Leave.year}`, { days:Leave.carryDays }).catch(()=>{}); }, 500),
+  /** ยอดยกมาต้นปีของวันหยุดสะสม ดึงจากผลสิ้นปีก่อนหน้าอัตโนมัติ (ย้อนต่อเนื่องเท่าที่ปีนั้นมีข้อมูล สูงสุด 6 ปี) */
+  async computeAutoCarry(role){
+    const list = [];
+    for (let y = this.year - 1; y >= this.year - 6; y--){
+      const [used, carry] = await Promise.all([ Store.getUser(`leaveUsed:${y}`, {}), Store.getUser(`leaveCarry:${y}`, null) ]);
+      const ov = (carry && carry.days !== null && carry.days !== undefined && carry.days !== '') ? U.num(carry.days) : null;
+      const hasUsed = used && Object.keys(used).length > 0;
+      if (!hasUsed && ov === null) break;
+      list.unshift({ year:y, carryOverride:ov, used });
+    }
+    return LeaveCalc.chainCarry(role, this.hireDate, this.gender, list, this.year);
+  },
+
+  saveCarry: U.debounce(()=>{ Store.setUser(`leaveCarry:${Leave.year}`, { days:Leave.carryOverride }).catch(()=>{}); }, 500),
   saveUsed:  U.debounce(()=>{ Store.setUser(`leaveUsed:${Leave.year}`, Leave.usedMap).catch(()=>{}); }, 500),
 
   render(){
@@ -1820,7 +1866,9 @@ const Leave = {
         : (d.locked ? '-' : d.quota);
       const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
         const remain = d.remain[i];
-        return `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key==='accum_holiday' ? CONFIG.OFF_LEFT_KEY : rule.key}" data-m="${i}" min="0" ${rule.key==='accum_holiday' ? `max="${CONFIG.MONTHLY_OFF_DAYS}" title="วันหยุดที่เหลือสะสมเดือนนี้ (ไม่เกิน ${CONFIG.MONTHLY_OFF_DAYS} วัน)"` : ''} step="0.5" value="${rule.key==='accum_holiday' ? (d.leftRaw[i] ?? '') : (d.used[i]||'')}"></td>
+        return `${rule.key==='accum_holiday'
+? `<td class="month-sep"><div class="leave-pair"><input type="number" class="leave-off-left-input" data-m="${i}" min="0" max="${CONFIG.MONTHLY_OFF_DAYS}" step="0.5" placeholder="+" title="เก็บเพิ่ม: วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (0-${CONFIG.MONTHLY_OFF_DAYS} วัน)" value="${d.leftRaw[i] ?? ''}"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" placeholder="−" title="ใช้วันสะสมไป" value="${d.used[i]||''}"></div></td>`
+: `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" value="${d.used[i]||''}"></td>`}
                 <td class="leave-remain${remain<0?' neg':''}" data-remain-key="${rule.key}" data-remain-m="${i}">${remain}</td>`;
       }).join('');
       return `<tr class="${d.locked?'leave-locked':''}" data-rule="${rule.key}">
@@ -1859,13 +1907,23 @@ const Leave = {
       const carryInp = e.target.closest('.leave-carry-input');
       if (carryInp){
         const rule = Leave.rulesForRoleAccum();
-        this.carryDays = Math.max(0, Math.min(U.num(carryInp.value), rule.carryCap ?? 0));
-        carryInp.value = this.carryDays;
+        this.carryOverride = carryInp.value === '' ? null : Math.max(0, Math.min(U.num(carryInp.value), rule.carryCap ?? 0));
+      this.carryDays = this.carryOverride ?? this.autoCarry;
+      if (this.carryOverride !== null) carryInp.value = this.carryOverride;
         this.saveCarry();
         this.recalcAndRepaint();
         return;
       }
-      const usedInp = e.target.closest('.leave-used-input');
+      const leftInp = e.target.closest('.leave-off-left-input');
+    if (leftInp){
+      const m = +leftInp.dataset.m, k = CONFIG.OFF_LEFT_KEY;
+      if (!this.usedMap[k]) this.usedMap[k] = Array(12).fill(null);
+      this.usedMap[k][m] = leftInp.value === '' ? null : Math.min(CONFIG.MONTHLY_OFF_DAYS, Math.max(0, U.num(leftInp.value)));
+      this.saveUsed();
+      this.recalcAndRepaint();
+      return;
+    }
+    const usedInp = e.target.closest('.leave-used-input');
       if (usedInp){
         const key = usedInp.dataset.key, m = +usedInp.dataset.m;
         if (!this.usedMap[key]) this.usedMap[key] = Array(12).fill(key === CONFIG.OFF_LEFT_KEY ? null : 0);
@@ -1876,20 +1934,17 @@ const Leave = {
     });
   },
 
-  /** สรุปวันหยุดสะสม: ยอดล่าสุด, ส่วนที่แลกเป็นเงิน และยอดยกไปปีหน้า (เพดาน = carryCap) */
+  /** สรุปวันหยุดสะสม: ยอดยกมา, ยอดรวมสิ้นปี (ตามที่กรอกแล้ว), ส่วนที่แลกเป็นเงิน และยอดยกไปปีหน้า (เพดาน = carryCap) */
   paintAccumSummary(built){
     const el = U.$('leaveAccumSummary'); if (!el) return;
     const rule = built.rules.find(r=>r.key==='accum_holiday');
     const a = built.data['accum_holiday'];
     if (!rule || !a){ el.textContent = ''; return; }
-    const fmt = (n)=> Number.isInteger(n) ? n : n.toFixed(1);
-    if (a.lastIdx < 0){
-      el.textContent = `วันหยุดสะสม: กรอก "วันหยุดที่เหลือสะสม" ของแต่ละเดือนในแถววันหยุดสะสม (เช่น วันหยุดประจำเดือน ${CONFIG.MONTHLY_OFF_DAYS} วัน ใช้ 5 วัน เหลือ 1 วัน ให้กรอก 1)`;
-      return;
-    }
-    el.textContent = `วันหยุดสะสมถึงเดือน${CONFIG.MONTH_LABELS_TH[a.lastIdx]}: ${fmt(a.balance)} วัน — `
-      + (a.isFinal ? '' : 'ประมาณการหากสิ้นปีเท่านี้: ')
-      + `แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน (เพดานยกไป ${rule.carryCap} วัน)`;
+    const fmt = (n)=> Number.isInteger(n) ? n : (Math.round(n*10)/10);
+    const src = rule.poolFrom === 'vacation' ? 'ลาพักผ่อน' : 'วันหยุดพิเศษประจำปี';
+    el.textContent = `วันหยุดสะสม: ช่อง (+) = วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (เดือนละ ${CONFIG.MONTHLY_OFF_DAYS} วัน) ช่อง (−) = วันสะสมที่ใช้ไป — ยอดคงเหลือรวม${src}ที่ยังไม่ได้ใช้ | `
+      + `ยอดยกมาต้นปี ${fmt(a.quota)} วัน${this.carryOverride === null ? ' (ดึงจากปีก่อนอัตโนมัติ)' : ' (กรอกเอง — ล้างช่อง "สิทธิ์ทั้งปี" เพื่อใช้ค่าอัตโนมัติ)'} | `
+      + `ยอดรวมสิ้นปี${a.isFinal ? '' : ' (ประมาณการ)'} ${fmt(a.balance)} วัน → แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน (เพดานยกไป ${rule.carryCap} วัน)`;
   },
 
   rulesForRoleAccum(){
@@ -1963,6 +2018,37 @@ const AdminLeave = {
     return totals;
   },
 
+  /** ยอดยกมาต้นปีอัตโนมัติของวันหยุดสะสมของทุกคน: ย้อนดู leave-summary ปีก่อนหน้าต่อเนื่อง (สูงสุด 6 ปี) แล้วต่อสายผลสิ้นปีเข้าปีที่ดู */
+  async loadCarryAuto(rows){
+    const byYear = new Map();
+    for (let y = this.year - 1; y >= this.year - 6; y--){
+      let yr;
+      try{ yr = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(y) } }); }
+      catch(_){ break; }
+      const m = new Map(); let any = false;
+      (yr || []).forEach(p=>{
+        const ov = U.num(p.leave_carry) > 0 ? U.num(p.leave_carry) : null;
+        const used = p.leave_used || {};
+        const has = ov !== null || Object.keys(used).length > 0;
+        if (has) any = true;
+        m.set(this.personKey(p), { ov, used, has });
+      });
+      byYear.set(y, m);
+      if (!any) break;
+    }
+    const out = new Map();
+    rows.forEach(p=>{
+      const key = this.personKey(p); const list = [];
+      for (let y = this.year - 1; y >= this.year - 6; y--){
+        const rec = byYear.get(y)?.get(key);
+        if (!rec || !rec.has) break;
+        list.unshift({ year:y, carryOverride:rec.ov, used:rec.used });
+      }
+      out.set(key, LeaveCalc.chainCarry(p.role, p.start_date, p.gender, list, this.year));
+    });
+    return out;
+  },
+
   bindControls(){
     U.$('la_year').value = this.year;
     U.$('la_month').innerHTML = CONFIG.MONTH_LABELS_TH.map((m,i)=>`<option value="${i+1}" ${i+1===this.month?'selected':''}>${m}</option>`).join('');
@@ -1976,6 +2062,7 @@ const AdminLeave = {
     try{
       this.rows = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(this.year) } });
       this.priorUsedTotals = await this.loadPriorUsedTotals(this.rows);
+      this.carryAuto = await this.loadCarryAuto(this.rows);
       this._loaded = true;
       this.renderTables();
     }catch(err){ U.toast('โหลดข้อมูลวันลาไม่สำเร็จ: '+err.message, 'error'); }
@@ -2000,13 +2087,15 @@ const AdminLeave = {
     const mi = this.month - 1;
     U.$(bodyId).innerHTML = people.map(p=>{
       const priorUsedTotals = this.priorUsedTotals.get(this.personKey(p)) || {};
-      const built = LeaveCalc.build(role, p.start_date, p.leave_carry, p.leave_used, this.year, p.gender, priorUsedTotals);
+      const ovr = U.num(p.leave_carry) > 0 ? U.num(p.leave_carry) : null;
+const carry = ovr ?? (this.carryAuto?.get(this.personKey(p)) ?? 0);
+const built = LeaveCalc.build(role, p.start_date, carry, p.leave_used, this.year, p.gender, priorUsedTotals);
       const genderTd = showGender ? `<td>${Admin.GENDER_LABEL[p.gender]||'-'}</td>` : '';
       const cells = rules.map(r=>{
         const d = built.data[r.key];
         if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
         const isAcc = r.key === 'accum_holiday';
-        const used = isAcc ? (d.leftRaw[mi] ?? '') : (d.used[mi] || 0);
+        const used = isAcc ? ((d.leftRaw[mi] !== null ? '+'+d.leftRaw[mi] : '') + (d.used[mi] ? ' −'+d.used[mi] : '')).trim() : (d.used[mi] || 0);
         const remain = d.remain[mi];
         return `<td class="month-sep">${used}</td><td class="leave-remain${remain<0?' neg':''}">${remain}${isAcc && this.month===12 && d.cashout>0 ? ` <span class="hint">(แลกเงิน ${d.cashout} วัน)</span>` : ''}</td>`;
       }).join('');
