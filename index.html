@@ -643,7 +643,8 @@ const CONFIG = {
     vacation:      [3,3,3,3,2,2,2,2,1,1,1,1]
   },
 
-  NO_CARRY_YEARS: [2026], // ปีที่ "ไม่ยกยอดวันหยุดสะสม" ไปปีถัดไป (ยกไป = 0 ทุกคน) — เริ่มสะสมใหม่ตั้งแต่ปีถัดจากนั้น
+  CARRY_CHAIN_START_YEAR: 2026, // ปีแรกที่เริ่มนับวันหยุดสะสมใหม่ — ยอดยกมาของปีนี้กรอกเอง (ค่าเริ่มต้น 0) ไม่ดึงจากปีก่อน / ปีถัดไปดึงจากผลสิ้นปีก่อนอัตโนมัติ
+  NO_CARRY_YEARS: [], // ปีที่ "ไม่ยกยอดวันหยุดสะสม" ไปปีถัดไป (ยกไป = 0 ทุกคน) — เริ่มสะสมใหม่ตั้งแต่ปีถัดจากนั้น
   MONTHLY_OFF_DAYS: 6, // วันหยุดประจำเดือน (staff/เภสัชกร เท่ากัน) — ส่วนที่ไม่ได้ใช้จะสะสมเพิ่มในวันหยุดสะสม
   OFF_LEFT_KEY: 'off_left', // key ใน leaveUsed:{ปี} เก็บ "วันหยุดที่เหลือสะสม" ของแต่ละเดือน (เจ้าของกรอกตรงๆ, 0-MONTHLY_OFF_DAYS, null = ยังไม่กรอกเดือนนั้น)
   MONTH_LABELS_TH: ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
@@ -1714,7 +1715,7 @@ const LeaveCalc = {
       if (leftRaw[i] !== null) running += leftRaw[i];
       running -= used[i];
       if (leftRaw[i] !== null || used[i] > 0) lastIdx = i;
-      remain.push(running + U.num(src[i]));
+      remain.push(running + (i === 11 ? U.num(src[11]) : 0)); // ส่วนที่เหลือของ poolFrom รวมเข้ากองสะสมตอนสิ้นปี (ธ.ค.) เท่านั้น
     }
     const balance = remain[11];
     return { quota:carry, used, leftRaw, remain, locked:false, balance, lastIdx, isFinal:leftRaw[11] !== null,
@@ -1818,7 +1819,7 @@ const Leave = {
   /** ยอดยกมาต้นปีของวันหยุดสะสม ดึงจากผลสิ้นปีก่อนหน้าอัตโนมัติ (ย้อนต่อเนื่องเท่าที่ปีนั้นมีข้อมูล สูงสุด 6 ปี) */
   async computeAutoCarry(role){
     const list = [];
-    for (let y = this.year - 1; y >= this.year - 6; y--){
+    for (let y = this.year - 1; y >= Math.max(this.year - 6, CONFIG.CARRY_CHAIN_START_YEAR); y--){
       const [used, carry] = await Promise.all([ Store.getUser(`leaveUsed:${y}`, {}), Store.getUser(`leaveCarry:${y}`, null) ]);
       const ov = (carry && carry.days !== null && carry.days !== undefined && carry.days !== '') ? U.num(carry.days) : null;
       const hasUsed = used && Object.keys(used).length > 0;
@@ -1936,7 +1937,7 @@ const Leave = {
     });
   },
 
-  /** สรุปวันหยุดสะสม: ยอดยกมา, ยอดรวมสิ้นปี (ตามที่กรอกแล้ว), ส่วนที่แลกเป็นเงิน และยอดยกไปปีหน้า (เพดาน = carryCap) */
+  /** สรุปวันหยุดสะสม: ยอดยกมา, ยอดสะสมตอนนี้, ประมาณการสิ้นปี, ส่วนที่แลกเป็นเงิน และยอดยกไปปีหน้า (เพดาน = carryCap) */
   paintAccumSummary(built){
     const el = U.$('leaveAccumSummary'); if (!el) return;
     const rule = built.rules.find(r=>r.key==='accum_holiday');
@@ -1944,9 +1945,13 @@ const Leave = {
     if (!rule || !a){ el.textContent = ''; return; }
     const fmt = (n)=> Number.isInteger(n) ? n : (Math.round(n*10)/10);
     const src = rule.poolFrom === 'vacation' ? 'ลาพักผ่อน' : 'วันหยุดพิเศษประจำปี';
-    el.textContent = `วันหยุดสะสม: ช่อง (+) = วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (เดือนละ ${CONFIG.MONTHLY_OFF_DAYS} วัน) ช่อง (−) = วันสะสมที่ใช้ไป — ยอดคงเหลือรวม${src}ที่ยังไม่ได้ใช้ | `
-      + `ยอดยกมาต้นปี ${fmt(a.quota)} วัน${this.carryOverride === null ? ' (ดึงจากปีก่อนอัตโนมัติ)' : ' (กรอกเอง — ล้างช่อง "สิทธิ์ทั้งปี" เพื่อใช้ค่าอัตโนมัติ)'} | `
-      + `ยอดรวมสิ้นปี${a.isFinal ? '' : ' (ประมาณการ)'} ${fmt(a.balance)} วัน → แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน${a.noCarry ? ' (ปีนี้ไม่ยกยอด — เริ่มสะสมใหม่ปีหน้า)' : ` (เพดานยกไป ${rule.carryCap} วัน)`}`;
+    const sd = built.data[rule.poolFrom];
+    const srcLeft = (sd && !sd.locked) ? sd.remain[11] : 0;
+    const cur = a.lastIdx < 0 ? a.quota : a.remain[a.lastIdx];
+    el.textContent = `วันหยุดสะสม: ช่อง (+) = วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (เดือนละ ${CONFIG.MONTHLY_OFF_DAYS} วัน) ช่อง (−) = วันสะสมที่ใช้ไป | `
+      + `ยอดยกมาต้นปี ${fmt(a.quota)} วัน${this.carryOverride === null ? (this.year <= CONFIG.CARRY_CHAIN_START_YEAR ? ' (เริ่มนับใหม่ — กรอกเองที่ช่อง "สิทธิ์ทั้งปี")' : ' (ดึงจากปีก่อนอัตโนมัติ)') : ' (กรอกเอง — ล้างช่อง "สิทธิ์ทั้งปี" เพื่อใช้ค่าอัตโนมัติ)'} | `
+      + `ยอดสะสมตอนนี้ ${fmt(cur)} วัน | `
+      + `ยอดรวมสิ้นปี${a.isFinal ? '' : ' (ประมาณการ)'} ${fmt(a.balance)} วัน (รวมส่วนที่เหลือของ${src} ${fmt(srcLeft)} วัน ซึ่งรวมเข้าตอนสิ้นปี) → แลกเป็นเงินเดือน ธ.ค. ${fmt(a.cashout)} วัน / ยกไปปีหน้า ${fmt(a.carryNext)} วัน${a.noCarry ? ' (ปีนี้ไม่ยกยอด)' : ` (เพดานยกไป ${rule.carryCap} วัน)`}`;
   },
 
   rulesForRoleAccum(){
@@ -2023,7 +2028,7 @@ const AdminLeave = {
   /** ยอดยกมาต้นปีอัตโนมัติของวันหยุดสะสมของทุกคน: ย้อนดู leave-summary ปีก่อนหน้าต่อเนื่อง (สูงสุด 6 ปี) แล้วต่อสายผลสิ้นปีเข้าปีที่ดู */
   async loadCarryAuto(rows){
     const byYear = new Map();
-    for (let y = this.year - 1; y >= this.year - 6; y--){
+    for (let y = this.year - 1; y >= Math.max(this.year - 6, CONFIG.CARRY_CHAIN_START_YEAR); y--){
       let yr;
       try{ yr = await callFn(CONFIG.ADMIN_FN, { action:'leave-summary', payload:{ year:String(y) } }); }
       catch(_){ break; }
@@ -2041,7 +2046,7 @@ const AdminLeave = {
     const out = new Map();
     rows.forEach(p=>{
       const key = this.personKey(p); const list = [];
-      for (let y = this.year - 1; y >= this.year - 6; y--){
+      for (let y = this.year - 1; y >= Math.max(this.year - 6, CONFIG.CARRY_CHAIN_START_YEAR); y--){
         const rec = byYear.get(y)?.get(key);
         if (!rec || !rec.has) break;
         list.unshift({ year:y, carryOverride:rec.ov, used:rec.used });
