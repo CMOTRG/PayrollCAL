@@ -1160,8 +1160,14 @@ const Daily = {
     return 1;
   },
 
-  recalc(i){
-    const r=this.rows[i];
+  persist(){
+const m=App.month, rows=this.rows;
+this._saveChain=(this._saveChain||Promise.resolve()).then(()=>Store.setUser(`daily:${m}`, rows)).catch(()=>{});
+return this._saveChain;
+},
+
+recalc(i){
+const r=this.rows[i];
     if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
     if (!r.comManual){
       // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
@@ -1216,7 +1222,7 @@ const Daily = {
         r[f]=U.num(inp.value);
       }
       this.recalc(i); this.refreshRow(i); this.summary();
-      Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+      this.persist().catch(()=>{});
     });
     // เลือกสาขาที่ปฏิบัติงาน (เภสัชโมบาย) — ใช้ event 'change' แยกเพราะเป็น <select>
     body.addEventListener('change',(e)=>{
@@ -1224,7 +1230,7 @@ const Daily = {
       const tr=sel.closest('tr'); const i=+tr.dataset.i;
       this.rows[i].branch = sel.value;
       this.recalc(i); this.refreshRow(i); this.summary();
-      Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+      this.persist().catch(()=>{});
     });
     body.addEventListener('click',(e)=>{
       const btn=e.target.closest('[data-reset]'); if(!btn) return;
@@ -1282,7 +1288,7 @@ const Daily = {
 
     this.init();
     this.render();
-    Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+    this.persist().catch(()=>{});
     U.toast(`ล้างข้อมูลยอดขายรายวันเดือน ${App.month} แล้ว`, 'ok');
   },
 
@@ -1294,7 +1300,7 @@ const Daily = {
     try{
       const days=await OCR.run(file);
       const n=this.applyOCR(days);
-      await Store.setUser(`daily:${App.month}`, this.rows);
+      await this.persist();
       U.toast(`อ่านสำเร็จ ${n} วัน — OT รวม ${this.totals.ot.toFixed(2)} ชม.`,'ok');
     }catch(err){
       U.toast('อ่านรูปไม่สำเร็จ: '+err.message,'error');
@@ -1442,7 +1448,7 @@ const Daily = {
     });
 
     this.render();
-    Store.setUser(`daily:${App.month}`, this.rows).catch(()=>{});
+    this.persist().catch(()=>{});
     U.toast(`นำเข้าข้อมูลสำเร็จ ${filled} วัน (ข้ามวันที่มีข้อมูลอยู่แล้ว ${skipped} วัน)`, filled ? 'ok' : 'warn');
     this.cancelExcelImport();
   },
@@ -1587,9 +1593,17 @@ const Salary = {
     U.setVal('ph_comMonthly', Tiers.monthly(t.avg));
     U.setVal('st_otHours', t.ot.toFixed(2));
     U.setVal('st_comDaily', t.com.toFixed(2));
-    this.renderPharm();
-    this.renderStaff();
-  },
+this.renderPharm();
+this.renderStaff();
+this.persistSynced();
+},
+
+persistSynced:(()=>{ let t=null; return function(){
+if (App.loading) return;
+clearTimeout(t);
+const m=App.month;
+t=setTimeout(()=>{ if(m!==App.month||App.loading) return; Store.setUser(`pharmSalary:${m}`, this.readPharm()).catch(()=>{}); Store.setUser(`staffSalary:${m}`, this.readStaff()).catch(()=>{}); },600);
+}; })(),
 
   bind(){
     const savePharm=U.debounce(()=>Store.setUser(`pharmSalary:${App.month}`, this.readPharm()), 600);
@@ -2440,12 +2454,17 @@ const App = {
     };
   },
   async loadMonthData(){
-    Daily.rows = await Store.getUser(`daily:${this.month}`, null);
-    if (!Daily.rows) Daily.init();
-    Daily.recalcAll();
-    Daily.render();
-    await Salary.load();
-  }
+this.loading = true;
+try{
+Daily.rows = await Store.getUser(`daily:${this.month}`, null);
+if (!Daily.rows) Daily.init();
+Daily.recalcAll();
+Daily.render();
+await Salary.load();
+} finally { this.loading = false; }
+// Salary.load() ใส่ค่าที่บันทึกไว้ทับช่อง OT/ค่าคอมที่ซิงก์จากตารางรายวัน -> คำนวณรวมซ้ำให้ตรงกับตัวเลขปัจจุบัน
+Daily.summary();
+}
 };
 
 /* ---------- [15] INIT -------------------------------------------- */
