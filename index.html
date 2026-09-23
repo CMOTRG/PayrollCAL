@@ -2302,18 +2302,55 @@ const Admin = {
 
 /* ---------- [13] EXPORT ---------------------------------------- */
 const Export = {
-  staffXlsx(){
-    const ws = XLSX.utils.json_to_sheet([Salary.readStaff()]);
+  /** ส่งออกตารางเงินเดือนเป็นแนวตั้ง (1 รายการต่อ 1 แถว) หัวข้อภาษาไทยตามหน้าเว็บ
+   *  อ่านจากตารางบนหน้าจอโดยตรง จึงรวมรายการที่เพิ่มเอง (+) ด้วย */
+  salaryXlsx(sectionId, title, filename){
+    if (sectionId==='tab-salary') Salary.renderPharm(); else Salary.renderStaff();
+    const table = U.$(sectionId).querySelector('table');
+    const cellVal = (td)=>{
+      if (!td) return '';
+      const inp = td.querySelector('input');
+      if (inp) return inp.type==='number' ? (inp.value==='' ? '' : U.num(inp.value)) : inp.value.trim();
+      return td.textContent.trim();
+    };
+    const aoa = [
+      [title],
+      ['ประจำเดือน', App.month],
+      [],
+      ['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)']
+    ];
+    let groupName = null, groupSum = 0;
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      if (tr.classList.contains('grp')){
+        if (groupName!==null){ aoa.push(['รวม'+groupName,'','',groupSum]); aoa.push([]); }
+        groupName = tr.cells[0].textContent.trim(); groupSum = 0;
+        aoa.push([groupName]); return;
+      }
+      const c = tr.cells;
+      const label = cellVal(c[0]) || '(ไม่มีชื่อรายการ)';
+      let mul = cellVal(c[2]);
+      if (mul==='—') mul = ''; else if (mul!=='' && typeof mul!=='number') mul = U.num(mul);
+      const amt = U.num(c[3]?.textContent);
+      groupSum += amt;
+      aoa.push([label, cellVal(c[1]), mul, amt]);
+    });
+    if (groupName!==null) aoa.push(['รวม'+groupName,'','',groupSum]);
+    aoa.push([]);
+    aoa.push(['รวมสุทธิ','','', U.num(table.querySelector('tfoot .amt')?.textContent)]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:28},{wch:12},{wch:10},{wch:16}];
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:3}}];
+    for (let r=4; r<aoa.length; r++){           // รูปแบบตัวเลขคอลัมน์ "จำนวน (บาท)"
+      const cell = ws[XLSX.utils.encode_cell({r, c:3})];
+      if (cell && cell.t==='n') cell.z = '#,##0.00';
+    }
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'เงินเดือนพนักงาน');
-    XLSX.writeFile(wb, 'เงินเดือนพนักงาน.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, title.slice(0,31));
+    XLSX.writeFile(wb, filename.replace('.xlsx', `_${App.month}.xlsx`));
   },
-  pharmXlsx(){
-    const ws = XLSX.utils.json_to_sheet([Salary.readPharm()]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'เงินเดือนเภสัชกร');
-    XLSX.writeFile(wb, 'เงินเดือนเภสัชกร.xlsx');
-  },
+  staffXlsx(){ this.salaryXlsx('tab-staff', 'เงินเดือนพนักงาน', 'เงินเดือนพนักงาน.xlsx'); },
+  pharmXlsx(){ this.salaryXlsx('tab-salary', 'เงินเดือนเภสัชกร', 'เงินเดือนเภสัชกร.xlsx'); },
   summaryXlsx(rows){
     if (!rows.length) return U.toast('ยังไม่มีข้อมูลสรุป','warn');
     const ws = XLSX.utils.json_to_sheet(rows);
