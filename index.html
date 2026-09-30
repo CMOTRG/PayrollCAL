@@ -58,6 +58,7 @@ table{width:100%; border-collapse:collapse; font-size:13px}
 th,td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:center}
 th{color:var(--muted); font-weight:600}
 td input{width:100%; padding:5px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--txt); text-align:center;}
+td input.note-input{text-align:left}
 td input.is-manual{border-color:var(--warn); background:#fef3c7}
 .ot-input-group{display:flex; align-items:center; gap:3px; justify-content:center}
 .ot-input-group input{width:44px; padding:5px 3px; text-align:center; flex:0 0 auto}
@@ -337,6 +338,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
           <tr><td>ค่าเชียร์</td><td><input id="ph_cheer" type="number"></td><td>—</td><td class="amt" id="o_ph_cheer">0.00</td><td></td></tr>
           <tr><td>ค่า CI</td><td><input id="ph_ci" type="number"></td><td>—</td><td class="amt" id="o_ph_ci">0.00</td><td></td></tr>
           <tr><td>อื่นๆ</td><td><input id="ph_other" type="number"></td><td>—</td><td class="amt" id="o_ph_other">0.00</td><td></td></tr>
+          <tr class="note-row"><td>หมายเหตุ (อื่นๆ)</td><td colspan="3"><input id="ph_otherNote" type="text" class="note-input" maxlength="200" placeholder="ระบุรายละเอียดเพิ่มเติมของรายการ อื่นๆ"></td><td></td></tr>
         </tbody>
         <tbody id="ph_claim_extra"></tbody>
 
@@ -376,6 +378,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
               <td class="amt" id="o_st_ot">0.00</td><td></td></tr>
           <tr><td>com รายวัน</td><td><input id="st_comDaily" type="number"></td><td>—</td><td class="amt" id="o_st_comDaily">0.00</td><td></td></tr>
           <tr><td>อื่นๆ</td><td><input id="st_other" type="number"></td><td>—</td><td class="amt" id="o_st_other">0.00</td><td></td></tr>
+          <tr class="note-row"><td>หมายเหตุ (อื่นๆ)</td><td colspan="3"><input id="st_otherNote" type="text" class="note-input" maxlength="200" placeholder="ระบุรายละเอียดเพิ่มเติมของรายการ อื่นๆ"></td><td></td></tr>
         </tbody>
         <tbody id="st_claim_extra"></tbody>
 
@@ -1562,7 +1565,7 @@ const Salary = {
       salary:U.val('ph_salary'), license:U.val('ph_license'), exp:U.val('ph_exp'), posOther:U.val('ph_posOther'),
       otHours:U.val('ph_otHours'), otRate:U.val('ph_otRate')||170,
       comDaily:U.val('ph_comDaily'), comMonthly:U.val('ph_comMonthly'),
-      cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'),
+      cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'), otherNote:(U.$('ph_otherNote')?.value||'').trim(),
       sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther'),
       extraFixed: this.readExtra('ph','fixed'),
       extraClaim: this.readExtra('ph','claim'),
@@ -1588,7 +1591,7 @@ const Salary = {
     return {
       salary:U.val('st_salary'), license:0, exp:0, posOther:U.val('st_posOther'),
       otHours:U.val('st_otHours'), otRate:U.val('st_otRate')||62.5,
-      comDaily:U.val('st_comDaily'), comMonthly:0, cheer:0, ci:0, other:U.val('st_other'),
+      comDaily:U.val('st_comDaily'), comMonthly:0, cheer:0, ci:0, other:U.val('st_other'), otherNote:(U.$('st_otherNote')?.value||'').trim(),
       sso:U.val('st_sso'), deductOther:U.val('st_deductOther'),
       extraFixed: this.readExtra('st','fixed'),
       extraClaim: this.readExtra('st','claim'),
@@ -1657,12 +1660,14 @@ t=setTimeout(()=>{ if(m!==App.month||App.loading) return; Store.setUser(`pharmSa
   async load(){
     const skip = ['extraFixed','extraClaim','extraDeduct'];
     const ph = (await Store.getUser(`pharmSalary:${App.month}`, null)) || {};
+    U.setVal('ph_otherNote','');
     Object.entries(ph).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('ph_'+k, v); });
     this.renderExtra('ph','fixed',  ph.extraFixed  || []);
     this.renderExtra('ph','claim',  ph.extraClaim  || []);
     this.renderExtra('ph','deduct', ph.extraDeduct || []);
 
     const st = (await Store.getUser(`staffSalary:${App.month}`, null)) || {};
+    U.setVal('st_otherNote','');
     Object.entries(st).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('st_'+k, v); });
     this.renderExtra('st','fixed',  st.extraFixed  || []);
     this.renderExtra('st','claim',  st.extraClaim  || []);
@@ -2325,6 +2330,11 @@ const Export = {
         if (groupName!==null){ aoa.push(['รวม'+groupName,'','',groupSum]); aoa.push([]); }
         groupName = tr.cells[0].textContent.trim(); groupSum = 0;
         aoa.push([groupName]); return;
+      }
+      if (tr.classList.contains('note-row')){          // แถวหมายเหตุ: ไม่มียอดเงิน ไม่นับรวม
+        const note = tr.querySelector('input')?.value.trim();
+        if (note) aoa.push([tr.cells[0].textContent.trim(), note]);
+        return;
       }
       const c = tr.cells;
       const label = cellVal(c[0]) || '(ไม่มีชื่อรายการ)';
