@@ -194,6 +194,16 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <div class="field"><label>รหัสผ่าน</label><input type="password" id="li_pass" required></div>
       <button class="btn" type="submit">เข้าสู่ระบบ</button>
       <p class="msg" id="loginMsg"></p>
+      <p style="text-align:center;margin-top:8px"><a href="#" id="forgotLink">ลืมรหัสผ่าน?</a></p>
+    </form>
+
+    <!-- ฟอร์มตั้งรหัสผ่านใหม่ (แสดงเมื่อเปิดจากลิงก์ในอีเมลรีเซ็ต) -->
+    <form id="resetPwForm" class="hide">
+      <h3 style="margin:0 0 12px">ตั้งรหัสผ่านใหม่</h3>
+      <div class="field"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label><input type="password" id="rp_pass1" required minlength="8"></div>
+      <div class="field"><label>ยืนยันรหัสผ่านใหม่</label><input type="password" id="rp_pass2" required minlength="8"></div>
+      <button class="btn" type="submit">บันทึกรหัสผ่านใหม่</button>
+      <p class="msg" id="resetPwMsg"></p>
     </form>
 
     <form id="signupForm" class="hide">
@@ -2386,6 +2396,47 @@ const Export = {
   }
 };
 
+/* ---------- [13b] PASSWORD RESET (ผู้ใช้รีเซ็ตรหัสผ่านเองทางอีเมล) ---------- */
+const PwReset = {
+  active: /type=recovery/.test(location.hash),
+
+  bind(){
+    document.getElementById('forgotLink').addEventListener('click', e => { e.preventDefault(); this.request(); });
+    document.getElementById('resetPwForm').addEventListener('submit', e => { e.preventDefault(); this.save(); });
+  },
+
+  async request(){
+    const msg = document.getElementById('loginMsg');
+    const email = document.getElementById('li_email').value.trim() || (prompt('กรอกอีเมลที่ใช้เข้าระบบ') || '').trim();
+    if (!email) return;
+    msg.className = 'msg'; msg.textContent = 'กำลังส่ง...';
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    if (error && error.status === 429) { msg.className = 'msg err'; msg.textContent = 'ขอบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่'; return; }
+    msg.className = 'msg';
+    msg.textContent = 'ถ้าอีเมลนี้มีในระบบ เราได้ส่งลิงก์รีเซ็ตรหัสผ่านไปแล้ว กรุณาตรวจกล่องจดหมาย (รวมถึง Spam)';
+  },
+
+  show(){
+    this.active = true;
+    const ov = document.getElementById('authOverlay'); if (ov) ov.style.display = '';
+    ['loginForm','signupForm'].forEach(id => document.getElementById(id).classList.add('hide'));
+    const tabs = document.querySelector('.auth-tabs'); if (tabs) tabs.style.display = 'none';
+    document.getElementById('resetPwForm').classList.remove('hide');
+  },
+
+  async save(){
+    const p1 = document.getElementById('rp_pass1').value, p2 = document.getElementById('rp_pass2').value;
+    const msg = document.getElementById('resetPwMsg'); msg.className = 'msg err';
+    if (p1.length < 8) { msg.textContent = 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'; return; }
+    if (p1 !== p2) { msg.textContent = 'รหัสผ่านทั้งสองช่องไม่ตรงกัน'; return; }
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    if (error) { msg.textContent = 'ไม่สำเร็จ: ' + error.message; return; }
+    alert('เปลี่ยนรหัสผ่านเรียบร้อย กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
+    await sb.auth.signOut();
+    location.href = location.origin + location.pathname;
+  }
+};
+
 /* ---------- [14] APP (role / tabs / เดือน / boot) --------------- */
 const App = {
   month: new Date().toISOString().slice(0,7),   // 'YYYY-MM'
@@ -2549,8 +2600,12 @@ document.addEventListener('DOMContentLoaded', () => {
   Admin.bind();
   Export.bind();
 
-  sb.auth.onAuthStateChange((_event, _session) => App.boot());
-  App.boot();
+  PwReset.bind();
+  sb.auth.onAuthStateChange((event, _session) => {
+    if (event === 'PASSWORD_RECOVERY') { PwReset.show(); return; }
+    if (!PwReset.active) App.boot();
+  });
+  if (PwReset.active) PwReset.show(); else App.boot();
 });
 </script>
 </body>
