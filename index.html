@@ -176,6 +176,12 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
 
   #toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
+.exp-overlay{position:fixed; inset:0; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; z-index:9999; padding:16px}
+.exp-dialog{background:#fff; color:#111; border-radius:12px; padding:18px; width:100%; max-width:340px; display:flex; flex-direction:column; gap:10px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.exp-title{font-weight:700; font-size:17px}
+.exp-file{font-size:13px; color:#555; word-break:break-all}
+.exp-hint{font-size:12px; color:#92400e; background:#fffbeb; padding:6px 8px; border-radius:6px}
+.exp-dialog .btn:disabled{opacity:.45; cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -320,6 +326,10 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
         </tfoot>
       </table>
     </div>
+    <div class="row">
+      <button class="btn small" id="btnExportXlsxDaily">ส่งออก Excel</button>
+      <button class="btn small secondary" id="btnExportPdfDaily">ส่งออก PDF</button>
+    </div>
     <p class="hint" id="dailyOtHint">** ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม./วัน (ฐานงาน 8 ชม. + พัก 1 ชม.)</p>
   </section>
 
@@ -404,6 +414,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     </div>
     <div class="row">
       <button class="btn small" id="btnExportXlsxStaff">ส่งออก Excel</button>
+      <button class="btn small secondary" id="btnExportPdfStaff">ส่งออก PDF</button>
     </div>
   </section>
 
@@ -2323,15 +2334,14 @@ const Admin = {
       }catch(err){ U.toast(err.message,'error'); }
     };
 
-    U.$('ad_exportSummaryBtn').onclick = () => Export.summaryXlsx(this._summary||[]);
+    U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx(this._summary||[]));
   }
 };
 
 /* ---------- [13] EXPORT ---------------------------------------- */
 const Export = {
-  /** ส่งออกตารางเงินเดือนเป็นแนวตั้ง (1 รายการต่อ 1 แถว) หัวข้อภาษาไทยตามหน้าเว็บ
-   *  อ่านจากตารางบนหน้าจอโดยตรง จึงรวมรายการที่เพิ่มเอง (+) ด้วย */
-  salaryXlsx(sectionId, title, filename){
+  /** อ่านตารางเงินเดือนบนหน้าจอ -> array of arrays (แนวตั้ง 1 รายการต่อ 1 แถว) รวมรายการที่เพิ่มเอง (+) */
+  salaryAoa(sectionId){
     if (sectionId==='tab-salary') Salary.renderPharm(); else Salary.renderStaff();
     const table = U.$(sectionId).querySelector('table');
     const cellVal = (td)=>{
@@ -2340,22 +2350,17 @@ const Export = {
       if (inp) return inp.type==='number' ? (inp.value==='' ? '' : U.num(inp.value)) : inp.value.trim();
       return td.textContent.trim();
     };
-    const aoa = [
-      [title],
-      ['ประจำเดือน', App.month],
-      [],
-      ['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)']
-    ];
+    const rows = [];   // {kind:'grp'|'item'|'note'|'sum'|'net'|'blank', cells:[...]}
     let groupName = null, groupSum = 0;
     table.querySelectorAll('tbody tr').forEach(tr=>{
       if (tr.classList.contains('grp')){
-        if (groupName!==null){ aoa.push(['รวม'+groupName,'','',groupSum]); aoa.push([]); }
+        if (groupName!==null){ rows.push({kind:'sum', cells:['รวม'+groupName,'','',groupSum]}); rows.push({kind:'blank', cells:[]}); }
         groupName = tr.cells[0].textContent.trim(); groupSum = 0;
-        aoa.push([groupName]); return;
+        rows.push({kind:'grp', cells:[groupName]}); return;
       }
-      if (tr.classList.contains('note-row')){          // แถวหมายเหตุ: ไม่มียอดเงิน ไม่นับรวม
+      if (tr.classList.contains('note-row')){
         const note = tr.querySelector('input')?.value.trim();
-        if (note) aoa.push([tr.cells[0].textContent.trim(), note]);
+        if (note) rows.push({kind:'note', cells:[tr.cells[0].textContent.trim(), note]});
         return;
       }
       const c = tr.cells;
@@ -2364,49 +2369,215 @@ const Export = {
       if (mul==='—') mul = ''; else if (mul!=='' && typeof mul!=='number') mul = U.num(mul);
       const amt = U.num(c[3]?.textContent);
       groupSum += amt;
-      aoa.push([label, cellVal(c[1]), mul, amt]);
+      rows.push({kind:'item', cells:[label, cellVal(c[1]), mul, amt]});
     });
-    if (groupName!==null) aoa.push(['รวม'+groupName,'','',groupSum]);
-    aoa.push([]);
-    aoa.push(['รวมสุทธิ','','', U.num(table.querySelector('tfoot .amt')?.textContent)]);
+    if (groupName!==null) rows.push({kind:'sum', cells:['รวม'+groupName,'','',groupSum]});
+    rows.push({kind:'blank', cells:[]});
+    rows.push({kind:'net', cells:['รวมสุทธิ','','', U.num(table.querySelector('tfoot .amt')?.textContent)]});
+    return rows;
+  },
 
+  _userName(){ return (U.$('editNameInput')?.value || '').trim(); },
+
+  /* ---------- Excel ---------- */
+  async salaryXlsx(sectionId, title, filename){
+    const rows = this.salaryAoa(sectionId);
+    const name = this._userName();
+    const aoa = [[title], ['ประจำเดือน', App.month], ...(name?[['ชื่อ', name]]:[]), [], ['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)'], ...rows.map(r=>r.cells)];
+    const headRow = aoa.findIndex(r=>r[0]==='รายการ');
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws['!cols'] = [{wch:28},{wch:12},{wch:10},{wch:16}];
     ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:3}}];
-    for (let r=4; r<aoa.length; r++){           // รูปแบบตัวเลขคอลัมน์ "จำนวน (บาท)"
+    for (let r=headRow+1; r<aoa.length; r++){
       const cell = ws[XLSX.utils.encode_cell({r, c:3})];
       if (cell && cell.t==='n') cell.z = '#,##0.00';
     }
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, title.slice(0,31));
-    XLSX.writeFile(wb, filename.replace('.xlsx', `_${App.month}.xlsx`));
+    await this.deliverWb(ws, title, filename.replace('.xlsx', `_${App.month}.xlsx`));
   },
-  staffXlsx(){ this.salaryXlsx('tab-staff', 'เงินเดือนพนักงาน', 'เงินเดือนพนักงาน.xlsx'); },
-  pharmXlsx(){ this.salaryXlsx('tab-salary', 'เงินเดือนเภสัชกร', 'เงินเดือนเภสัชกร.xlsx'); },
-  summaryXlsx(rows){
+  staffXlsx(){ return this.salaryXlsx('tab-staff', 'เงินเดือนพนักงาน', 'เงินเดือนพนักงาน.xlsx'); },
+  pharmXlsx(){ return this.salaryXlsx('tab-salary', 'เงินเดือนเภสัชกร', 'เงินเดือนเภสัชกร.xlsx'); },
+  async summaryXlsx(rows){
     if (!rows.length) return U.toast('ยังไม่มีข้อมูลสรุป','warn');
     const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'สรุปเงินเดือน');
-    XLSX.writeFile(wb, 'สรุปเงินเดือนรวม.xlsx');
+    await this.deliverWb(ws, 'สรุปเงินเดือน', `สรุปเงินเดือนรวม_${App.month}.xlsx`);
   },
-  async pdf(sectionId, filename){
-    const el = U.$(sectionId);
-    const canvas = await html2canvas(el, {backgroundColor:'#ffffff'});
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p','pt','a4');
-    const imgData = canvas.toDataURL('image/png');
-    const w = pdf.internal.pageSize.getWidth();
-    const h = canvas.height * w / canvas.width;
-    pdf.addImage(imgData,'PNG',0,0,w,h);
-    pdf.save(filename);
+  async deliverWb(ws, sheetName, filename){
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0,31));
+    const buf = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+    const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    await this.deliver(blob, filename);
+  },
+
+  /* ---------- ยอดขายรายวัน ---------- */
+  dailyData(){
+    const fmtOt = (v)=>{ const {h,m} = Daily.splitHoursMinutes(v); return (h||m) ? `${h}:${String(m).padStart(2,'0')}` : ''; };
+    const body = Daily.rows.map(r=>[
+      r.day,
+      r.sales===''||r.sales==null ? '' : U.num(r.sales),
+      r.cases===''||r.cases==null ? '' : U.num(r.cases),
+      r.in||'', r.out||'',
+      fmtOt(r.ot),
+      r.branch ? `สาขา ${r.branch}` : '',
+      r.noCom ? '' : (r.com===''||r.com==null ? '' : U.num(r.com)),
+      r.noCom ? '✓' : ''
+    ]);
+    const t = (id)=>U.$(id)?.textContent.trim() || '';
+    const foot = ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), '', U.num(t('sumCom')), ''];
+    const head = ['วันที่','ยอดขาย','เคส','เข้างาน','ออกงาน','OT (ชม.:นาที)','คอมสาขา','คอมรายวัน','ไม่เข้างาน'];
+    return { head, body, foot };
+  },
+  async dailyXlsx(){
+    Daily.summary();
+    const { head, body, foot } = this.dailyData();
+    const name = this._userName();
+    const aoa = [['ยอดขายรายวัน'], ['ประจำเดือน', App.month], ...(name?[['ชื่อ', name]]:[]), [], head, ...body, foot];
+    const headRow = aoa.indexOf(head);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:7},{wch:14},{wch:7},{wch:9},{wch:9},{wch:13},{wch:10},{wch:12},{wch:10}];
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:8}}];
+    for (let r=headRow+1; r<aoa.length; r++){
+      [1,4,7].forEach(c=>{ const cell = ws[XLSX.utils.encode_cell({r,c})]; if (cell && cell.t==='n') cell.z = '#,##0.00'; });
+    }
+    await this.deliverWb(ws, 'ยอดขายรายวัน', `ยอดขายรายวัน_${App.month}.xlsx`);
+  },
+
+  /* ---------- PDF ----------
+   * เดิมจับภาพหน้าจอทั้ง section (รวมช่อง input) ทำให้ตัวเลขล้นช่อง/ถูกตัด
+   * ใหม่: สร้างตารางสำหรับพิมพ์โดยเฉพาะ (ข้อความล้วน ความกว้างคงที่ ตัวเลขชิดขวาไม่ตัดบรรทัด)
+   * แล้วค่อยแปลงเป็นภาพลง A4 รองรับหลายหน้า */
+  _fmt(v, money){
+    if (v===''||v==null) return '';
+    if (typeof v==='number') return money ? U.money(v) : v.toLocaleString('th-TH', {maximumFractionDigits:2});
+    return String(v);
+  },
+  _esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); },
+
+  /** opts: {title, head:[], rows:[{kind,cells}], numCols:Set, moneyCols:Set, widths:[%], landscape} */
+  async buildPdf(opts){
+    const name = this._userName();
+    const W = opts.landscape ? 1123 : 794;   // A4 @96dpi
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed; left:-10000px; top:0; width:${W}px; padding:40px 44px; box-sizing:border-box; background:#fff; color:#111; font-family:'Sarabun','Leelawadee UI','Tahoma',sans-serif; font-size:15px; line-height:1.45; text-align:left;`;
+    const colgroup = `<colgroup>${opts.widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup>`;
+    const td = (v,i,extra='')=>{
+      const isNum = opts.numCols.has(i);
+      const txt = this._fmt(v, opts.moneyCols.has(i));
+      return `<td style="padding:7px 10px; border:1px solid #cbd5e1; ${isNum?'text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;':'text-align:left; word-break:break-word;'} ${extra}">${this._esc(txt)}</td>`;
+    };
+    const ncol = opts.head.length;
+    const body = opts.rows.map(r=>{
+      if (r.kind==='blank') return `<tr><td colspan="${ncol}" style="height:6px; border:none"></td></tr>`;
+      if (r.kind==='grp')   return `<tr><td colspan="${ncol}" style="padding:7px 10px; border:1px solid #cbd5e1; background:#eef2ff; font-weight:700; color:#3730a3">${this._esc(r.cells[0])}</td></tr>`;
+      if (r.kind==='note')  return `<tr><td style="padding:7px 10px; border:1px solid #cbd5e1; color:#555">${this._esc(r.cells[0])}</td><td colspan="${ncol-1}" style="padding:7px 10px; border:1px solid #cbd5e1; color:#555; word-break:break-word">${this._esc(r.cells[1])}</td></tr>`;
+      const style = r.kind==='sum' ? 'font-weight:600; background:#f8fafc;' : r.kind==='net' || r.kind==='foot' ? 'font-weight:700; background:#e0e7ff; font-size:16px;' : '';
+      return `<tr>${Array.from({length:ncol},(_,i)=>td(r.cells[i],i,style)).join('')}</tr>`;
+    }).join('');
+    wrap.innerHTML = `
+      <div style="font-size:22px; font-weight:700; margin-bottom:4px">${this._esc(opts.title)}</div>
+      <div style="color:#444; margin-bottom:14px">ประจำเดือน ${this._esc(App.month)}${name?` &nbsp;·&nbsp; ${this._esc(name)}`:''}</div>
+      <table style="width:100%; border-collapse:collapse; table-layout:fixed">
+        ${colgroup}
+        <thead><tr>${opts.head.map((h,i)=>`<th style="padding:8px 10px; border:1px solid #94a3b8; background:#4f46e5; color:#fff; font-weight:600; text-align:${opts.numCols.has(i)?'right':'left'}; white-space:nowrap">${this._esc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div style="color:#888; font-size:12px; margin-top:12px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div>`;
+    document.body.appendChild(wrap);
+    try{
+      const canvas = await html2canvas(wrap, { backgroundColor:'#ffffff', scale:2, windowWidth:W });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF(opts.landscape?'l':'p', 'pt', 'a4');
+      const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+      const pxPerPage = Math.floor(canvas.width * ph / pw);   // ความสูง (px ของ canvas) ต่อ 1 หน้า
+      for (let y=0, page=0; y<canvas.height; y+=pxPerPage, page++){
+        const sliceH = Math.min(pxPerPage, canvas.height - y);
+        const c = document.createElement('canvas');
+        c.width = canvas.width; c.height = sliceH;
+        c.getContext('2d').drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        if (page) pdf.addPage();
+        pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pw, sliceH * pw / canvas.width);
+      }
+      return pdf.output('blob');
+    } finally { wrap.remove(); }
+  },
+  async salaryPdf(sectionId, title){
+    const rows = this.salaryAoa(sectionId);
+    const blob = await this.buildPdf({
+      title, head:['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)'], rows,
+      numCols:new Set([1,2,3]), moneyCols:new Set([3]), widths:[46,18,12,24]
+    });
+    await this.deliver(blob, `${title}_${App.month}.pdf`);
+  },
+  async dailyPdf(){
+    Daily.summary();
+    const { head, body, foot } = this.dailyData();
+    const blob = await this.buildPdf({
+      title:'ยอดขายรายวัน', head, landscape:true,
+      rows:[...body.map(c=>({kind:'item', cells:c})), {kind:'foot', cells:foot}],
+      numCols:new Set([0,1,2,4,5,7]), moneyCols:new Set([1,4,7]),
+      widths:[7,15,7,10,11,13,11,14,12]
+    });
+    await this.deliver(blob, `ยอดขายรายวัน_${App.month}.pdf`);
+  },
+
+  /* ---------- ส่งออก: เลือก ดาวน์โหลด หรือ แชร์ไปแอปอื่น (LINE, อีเมล ฯลฯ) ---------- */
+  canShareFile(file){
+    try { return !!(navigator.canShare && navigator.canShare({ files:[file] })); } catch(_){ return false; }
+  },
+  download(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href:url, download:filename });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  },
+  deliver(blob, filename){
+    const file = new File([blob], filename, { type:blob.type });
+    const canShare = this.canShareFile(file);
+    return new Promise(resolve=>{
+      const ov = document.createElement('div');
+      ov.className = 'exp-overlay';
+      ov.innerHTML = `
+        <div class="exp-dialog" role="dialog" aria-label="ส่งออกไฟล์">
+          <div class="exp-title">ส่งออกไฟล์</div>
+          <div class="exp-file">${this._esc(filename)}</div>
+          <button class="btn" data-act="dl">⬇️ ดาวน์โหลดไฟล์</button>
+          <button class="btn secondary" data-act="share" ${canShare?'':'disabled'}>📤 ส่งไปแอปอื่น (LINE, อีเมล ฯลฯ)</button>
+          ${canShare?'':'<div class="exp-hint">เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์ — ใช้ได้บนมือถือ (Chrome/Safari) หรือดาวน์โหลดแล้วแนบไฟล์เอง</div>'}
+          <button class="btn secondary" data-act="cancel">ยกเลิก</button>
+        </div>`;
+      const close = ()=>{ ov.remove(); resolve(); };
+      ov.addEventListener('click', async e=>{
+        if (e.target===ov) return close();
+        const act = e.target.closest('[data-act]')?.dataset.act;
+        if (!act) return;
+        if (act==='cancel') return close();
+        if (act==='dl'){ this.download(blob, filename); U.toast('ดาวน์โหลดแล้ว','ok'); return close(); }
+        if (act==='share'){
+          try { await navigator.share({ files:[file], title:filename }); close(); }
+          catch(err){ if (err?.name!=='AbortError') U.toast('แชร์ไม่สำเร็จ: '+err.message,'error'); }
+        }
+      });
+      document.body.appendChild(ov);
+    });
+  },
+
+  async run(btn, fn){
+    if (btn.disabled) return;
+    const old = btn.textContent; btn.disabled = true; btn.textContent = 'กำลังสร้างไฟล์...';
+    try { await fn(); } catch(err){ U.toast('ส่งออกไม่สำเร็จ: '+(err?.message||err),'error'); }
+    finally { btn.disabled = false; btn.textContent = old; }
   },
   bind(){
-    U.$('btnExportXlsxPharm').onclick = () => this.pharmXlsx();
-    U.$('btnExportPdfPharm').onclick  = () => this.pdf('tab-salary','เงินเดือนเภสัชกร.pdf');
-    U.$('btnExportXlsxStaff').onclick = () => this.staffXlsx();
+    const on = (id, fn)=>{ const b=U.$(id); if (b) b.onclick = ()=>this.run(b, fn); };
+    on('btnExportXlsxPharm',  ()=>this.pharmXlsx());
+    on('btnExportPdfPharm',   ()=>this.salaryPdf('tab-salary','เงินเดือนเภสัชกร'));
+    on('btnExportXlsxStaff',  ()=>this.staffXlsx());
+    on('btnExportPdfStaff',   ()=>this.salaryPdf('tab-staff','เงินเดือนพนักงาน'));
+    on('btnExportXlsxDaily',  ()=>this.dailyXlsx());
+    on('btnExportPdfDaily',   ()=>this.dailyPdf());
   }
 };
+
 
 /* ---------- [13b] PASSWORD RESET (ผู้ใช้รีเซ็ตรหัสผ่านเองทางอีเมล) ---------- */
 const PwReset = {
