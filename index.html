@@ -329,6 +329,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     <div class="row">
       <button class="btn small" id="btnExportXlsxDaily">ส่งออก Excel</button>
       <button class="btn small secondary" id="btnExportPdfDaily">ส่งออก PDF</button>
+      <button class="btn small secondary" id="btnCopyImgDaily" title="คัดลอกตารางเป็นรูป แล้วไปกด Ctrl+V ในแชท LINE">📋 คัดลอกเป็นรูป (วางใน LINE)</button>
     </div>
     <p class="hint" id="dailyOtHint">** ทำงานวันละ 10+1 ชม. คิดเป็น OT 2 ชม./วัน (ฐานงาน 8 ชม. + พัก 1 ชม.)</p>
   </section>
@@ -375,6 +376,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     <div class="row">
       <button class="btn small" id="btnExportXlsxPharm">ส่งออก Excel</button>
       <button class="btn small secondary" id="btnExportPdfPharm">ส่งออก PDF</button>
+      <button class="btn small secondary" id="btnCopyImgPharm" title="คัดลอกตารางเป็นรูป แล้วไปกด Ctrl+V ในแชท LINE">📋 คัดลอกเป็นรูป (วางใน LINE)</button>
     </div>
   </section>
 
@@ -415,6 +417,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     <div class="row">
       <button class="btn small" id="btnExportXlsxStaff">ส่งออก Excel</button>
       <button class="btn small secondary" id="btnExportPdfStaff">ส่งออก PDF</button>
+      <button class="btn small secondary" id="btnCopyImgStaff" title="คัดลอกตารางเป็นรูป แล้วไปกด Ctrl+V ในแชท LINE">📋 คัดลอกเป็นรูป (วางใน LINE)</button>
     </div>
   </section>
 
@@ -2454,7 +2457,7 @@ const Export = {
   _esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); },
 
   /** opts: {title, head:[], rows:[{kind,cells}], numCols:Set, moneyCols:Set, widths:[%], landscape} */
-  async buildPdf(opts){
+  async renderCanvas(opts){
     const name = this._userName();
     const W = opts.landscape ? 1123 : 794;   // A4 @96dpi
     const wrap = document.createElement('div');
@@ -2483,8 +2486,12 @@ const Export = {
       </table>
       <div style="color:#888; font-size:12px; margin-top:12px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div>`;
     document.body.appendChild(wrap);
-    try{
-      const canvas = await html2canvas(wrap, { backgroundColor:'#ffffff', scale:2, windowWidth:W });
+    try{ return await html2canvas(wrap, { backgroundColor:'#ffffff', scale:2, windowWidth:W }); }
+    finally{ wrap.remove(); }
+  },
+  async buildPdf(opts){
+    const canvas = await this.renderCanvas(opts);
+    {
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF(opts.landscape?'l':'p', 'pt', 'a4');
       const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -2498,26 +2505,33 @@ const Export = {
         pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pw, sliceH * pw / canvas.width);
       }
       return pdf.output('blob');
-    } finally { wrap.remove(); }
+    }
   },
-  async salaryPdf(sectionId, title){
-    const rows = this.salaryAoa(sectionId);
-    const blob = await this.buildPdf({
-      title, head:['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)'], rows,
-      numCols:new Set([1,2,3]), moneyCols:new Set([3]), widths:[46,18,12,24]
-    });
-    await this.deliver(blob, `${title}_${App.month}.pdf`);
+  salaryOpts(sectionId, title){
+    return { title, head:['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)'], rows:this.salaryAoa(sectionId),
+      numCols:new Set([1,2,3]), moneyCols:new Set([3]), widths:[46,18,12,24] };
   },
-  async dailyPdf(){
+  dailyOpts(){
     Daily.summary();
     const { head, body, foot } = this.dailyData();
-    const blob = await this.buildPdf({
-      title:'ยอดขายรายวัน', head, landscape:true,
+    return { title:'ยอดขายรายวัน', head, landscape:true,
       rows:[...body.map(c=>({kind:'item', cells:c})), {kind:'foot', cells:foot}],
-      numCols:new Set([0,1,2,4,5,7]), moneyCols:new Set([1,4,7]),
-      widths:[7,15,7,10,11,13,11,14,12]
-    });
-    await this.deliver(blob, `ยอดขายรายวัน_${App.month}.pdf`);
+      numCols:new Set([0,1,2,4,5,7]), moneyCols:new Set([1,4,7]), widths:[7,15,7,10,11,13,11,14,12] };
+  },
+  /** คัดลอกตารางเป็นรูป PNG ลงคลิปบอร์ด -> ไปกด Ctrl+V ในแชท LINE PC ได้เลย
+   *  ส่ง Promise ให้ ClipboardItem ทันที เพื่อให้ Chrome ยังนับว่าเป็นการกดของผู้ใช้ */
+  async copyImage(getOpts){
+    if (!navigator.clipboard?.write || typeof ClipboardItem==='undefined')
+      throw new Error('เบราว์เซอร์นี้ไม่รองรับการคัดลอกรูป (ใช้ Chrome หรือ Edge)');
+    const blobP = this.renderCanvas(getOpts()).then(c=>new Promise(r=>c.toBlob(r,'image/png')));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobP })]);
+    U.toast('คัดลอกรูปแล้ว — เปิดแชท LINE แล้วกด Ctrl+V เพื่อวาง','ok');
+  },
+  async salaryPdf(sectionId, title){
+    await this.deliver(await this.buildPdf(this.salaryOpts(sectionId, title)), `${title}_${App.month}.pdf`);
+  },
+  async dailyPdf(){
+    await this.deliver(await this.buildPdf(this.dailyOpts()), `ยอดขายรายวัน_${App.month}.pdf`);
   },
 
   /* ---------- ส่งออก: เลือก ดาวน์โหลด หรือ แชร์ไปแอปอื่น (LINE, อีเมล ฯลฯ) ---------- */
@@ -2575,6 +2589,9 @@ const Export = {
     on('btnExportPdfStaff',   ()=>this.salaryPdf('tab-staff','เงินเดือนพนักงาน'));
     on('btnExportXlsxDaily',  ()=>this.dailyXlsx());
     on('btnExportPdfDaily',   ()=>this.dailyPdf());
+    on('btnCopyImgPharm',     ()=>this.copyImage(()=>this.salaryOpts('tab-salary','เงินเดือนเภสัชกร')));
+    on('btnCopyImgStaff',     ()=>this.copyImage(()=>this.salaryOpts('tab-staff','เงินเดือนพนักงาน')));
+    on('btnCopyImgDaily',     ()=>this.copyImage(()=>this.dailyOpts()));
   }
 };
 
