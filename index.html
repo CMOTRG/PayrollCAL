@@ -312,7 +312,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
           <tr>
             <th>รวม</th>
             <th id="sumSales">0</th><th id="sumCases">0</th>
-            <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span></th>
+            <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span><span id="avgSalesNote" class="hint"></span></th>
             <th id="sumOt">0.00</th>
             <th></th>
 <th id="sumCom">0.00</th><th></th>
@@ -975,6 +975,9 @@ const Tiers = {
  * ผ่าน Edge Function action ใหม่ 'set-branch-tiers' เท่านั้น (RLS บล็อกไม่ให้ client เขียนแถว
  * กลาง (SYSTEM_ID) ตรงๆ เหมือนกับ pharm_code) — ฝั่งเซิร์ฟเวอร์ต้องเพิ่ม action นี้เองก่อนใช้งานจริง
  * ----------------------------------------------------------*/
+// สาขาที่นำมาคิดยอดเฉลี่ย/วันของเภสัชโมบาย (สาขา 7–9 ไม่นำมาคิด)
+const MOBILE_AVG_BRANCHES = [1,2,3,4,5,6];
+
 const BranchTiers = {
   data: {},          // { "1": { daily:[{min,amt}] }, ..., "9": {...} }
   selected: 1,
@@ -1224,11 +1227,20 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
       sales:sum('sales'), cases:sum('cases'), ot:otRounded, com:sum('com'),
       avg: workedDays ? sum('sales')/workedDays : 0
     };
+    // เภสัชโมบาย: ยอดเฉลี่ย/วัน (ใช้คิดคอมรายเดือน) นับเฉพาะวันที่ปฏิบัติงานที่สาขา 1–6
+    // สาขา 7, 8, 9 ยอดยังต่ำเกินไป จึงไม่นำยอดขายและจำนวนวันมาคิดรวม (ยอดขายรวมยังแสดงครบทุกสาขา)
+    const isMobileAvg = (CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin') && Tiers.type==='mobile';
+    if (isMobileAvg){
+      const avgRows = this.rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)));
+      const avgSum = avgRows.reduce((a,r)=>a+U.num(r.sales),0);
+      totals.avg = avgRows.length ? avgSum/avgRows.length : 0;
+    }
     U.setText('sumSales',U.money(totals.sales));
     U.setText('sumCases',totals.cases);
     U.setText('sumOt',totals.ot.toFixed(2));
     U.setText('sumCom',U.money(totals.com));
     U.setText('avgSales',U.money(totals.avg));
+    U.setText('avgSalesNote', isMobileAvg ? ' (เฉพาะสาขา 1–6)' : '');
     this.totals=totals;
     Salary.syncFromDaily(totals);
     return totals;
