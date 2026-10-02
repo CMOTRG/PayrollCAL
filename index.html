@@ -2395,7 +2395,7 @@ const Export = {
       const cell = ws[XLSX.utils.encode_cell({r, c:3})];
       if (cell && cell.t==='n') cell.z = '#,##0.00';
     }
-    await this.deliverWb(ws, title, filename.replace('.xlsx', `_${App.month}.xlsx`));
+    await this.deliverWb(ws, title, filename.replace('.xlsx', `_${App.month}.xlsx`), ()=>this.salaryOpts(sectionId, title));
   },
   staffXlsx(){ return this.salaryXlsx('tab-staff', 'เงินเดือนพนักงาน', 'เงินเดือนพนักงาน.xlsx'); },
   pharmXlsx(){ return this.salaryXlsx('tab-salary', 'เงินเดือนเภสัชกร', 'เงินเดือนเภสัชกร.xlsx'); },
@@ -2404,12 +2404,12 @@ const Export = {
     const ws = XLSX.utils.json_to_sheet(rows);
     await this.deliverWb(ws, 'สรุปเงินเดือน', `สรุปเงินเดือนรวม_${App.month}.xlsx`);
   },
-  async deliverWb(ws, sheetName, filename){
+  async deliverWb(ws, sheetName, filename, altOpts){
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0,31));
     const buf = XLSX.write(wb, { bookType:'xlsx', type:'array' });
     const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    await this.deliver(blob, filename);
+    await this.deliver(blob, filename, altOpts);
   },
 
   /* ---------- ยอดขายรายวัน ---------- */
@@ -2442,7 +2442,7 @@ const Export = {
     for (let r=headRow+1; r<aoa.length; r++){
       [1,4,7].forEach(c=>{ const cell = ws[XLSX.utils.encode_cell({r,c})]; if (cell && cell.t==='n') cell.z = '#,##0.00'; });
     }
-    await this.deliverWb(ws, 'ยอดขายรายวัน', `ยอดขายรายวัน_${App.month}.xlsx`);
+    await this.deliverWb(ws, 'ยอดขายรายวัน', `ยอดขายรายวัน_${App.month}.xlsx`, ()=>this.dailyOpts());
   },
 
   /* ---------- PDF ----------
@@ -2544,21 +2544,53 @@ const Export = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 4000);
   },
-  deliver(blob, filename){
+  /** altOpts (ถ้ามี) = ฟังก์ชันคืนค่าตารางสำหรับสร้าง PDF/รูป
+   *  ใช้กรณีไฟล์ Excel แชร์ไม่ได้ — Chrome บน Android ไม่อนุญาตให้แชร์ไฟล์ .xlsx
+   *  จึงเตรียมไฟล์ PDF และรูปภาพของตารางเดียวกันไว้ล่วงหน้าให้กดส่งแทน */
+  deliver(blob, filename, altOpts){
     const file = new File([blob], filename, { type:blob.type });
     const canShare = this.canShareFile(file);
+    const base = filename.replace(/\.[^.]+$/,'');
+    const probe = (name,type)=>this.canShareFile(new File([new Blob(['x'],{type})], name, {type}));
+    const useAlt = !canShare && altOpts && !!navigator.share && probe('a.pdf','application/pdf');
     return new Promise(resolve=>{
       const ov = document.createElement('div');
       ov.className = 'exp-overlay';
+      const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
       ov.innerHTML = `
         <div class="exp-dialog" role="dialog" aria-label="ส่งออกไฟล์">
           <div class="exp-title">ส่งออกไฟล์</div>
           <div class="exp-file">${this._esc(filename)}</div>
           <button class="btn" data-act="dl">⬇️ ดาวน์โหลดไฟล์</button>
-          <button class="btn secondary" data-act="share" ${canShare?'':'disabled'}>📤 ส่งไปแอปอื่น (LINE, อีเมล ฯลฯ)</button>
-          ${canShare?'':'<div class="exp-hint">เบราว์เซอร์นี้ไม่รองรับการแชร์ไฟล์ — ใช้ได้บนมือถือ (Chrome/Safari) หรือดาวน์โหลดแล้วแนบไฟล์เอง</div>'}
+          ${canShare ? `<button class="btn secondary" data-act="share">📤 ส่งไปแอปอื่น (LINE, อีเมล ฯลฯ)</button>` : ''}
+          ${useAlt ? `
+            <div class="exp-hint">มือถือส่งไฟล์ Excel เข้าแอปอื่นโดยตรงไม่ได้ — เลือกส่งเป็น PDF หรือรูปภาพแทน (ข้อมูลเดียวกัน)</div>
+            <button class="btn secondary" data-act="sharePdf" disabled>⏳ กำลังเตรียม PDF...</button>
+            <button class="btn secondary" data-act="shareImg" disabled>⏳ กำลังเตรียมรูปภาพ...</button>` : ''}
+          ${!canShare && !useAlt ? `<div class="exp-hint">${isMobile
+              ? 'เบราว์เซอร์นี้แชร์ไฟล์ไม่ได้ — ดาวน์โหลดแล้วแนบไฟล์ในแอปเอง'
+              : 'บนคอมพิวเตอร์: ดาวน์โหลดแล้วลากไฟล์จากแถบดาวน์โหลดไปวางในแชท LINE หรือใช้ปุ่ม 📋 คัดลอกเป็นรูป'}</div>` : ''}
           <button class="btn secondary" data-act="cancel">ยกเลิก</button>
         </div>`;
+      const alt = {};
+      if (useAlt){
+        (async ()=>{
+          try{
+            const opts = altOpts();
+            const canvas = await this.renderCanvas(opts);
+            const png = await new Promise(r=>canvas.toBlob(r,'image/png'));
+            alt.img = new File([png], base+'.png', {type:'image/png'});
+            const bImg = ov.querySelector('[data-act=shareImg]'); bImg.disabled=false; bImg.textContent='🖼️ ส่งเป็นรูปภาพ (LINE, อีเมล ฯลฯ)';
+            const pdf = await this.buildPdf(opts);
+            alt.pdf = new File([pdf], base+'.pdf', {type:'application/pdf'});
+            const bPdf = ov.querySelector('[data-act=sharePdf]'); bPdf.disabled=false; bPdf.textContent='📄 ส่งเป็น PDF (LINE, อีเมล ฯลฯ)';
+          }catch(err){ U.toast('เตรียมไฟล์ไม่สำเร็จ: '+err.message,'error'); }
+        })();
+      }
+      const share = async (f)=>{
+        try { await navigator.share({ files:[f], title:f.name }); close(); }
+        catch(err){ if (err?.name!=='AbortError') U.toast('แชร์ไม่สำเร็จ: '+err.message,'error'); }
+      };
       const close = ()=>{ ov.remove(); resolve(); };
       ov.addEventListener('click', async e=>{
         if (e.target===ov) return close();
@@ -2566,14 +2598,14 @@ const Export = {
         if (!act) return;
         if (act==='cancel') return close();
         if (act==='dl'){ this.download(blob, filename); U.toast('ดาวน์โหลดแล้ว','ok'); return close(); }
-        if (act==='share'){
-          try { await navigator.share({ files:[file], title:filename }); close(); }
-          catch(err){ if (err?.name!=='AbortError') U.toast('แชร์ไม่สำเร็จ: '+err.message,'error'); }
-        }
+        if (act==='share') return share(file);
+        if (act==='sharePdf' && alt.pdf) return share(alt.pdf);
+        if (act==='shareImg' && alt.img) return share(alt.img);
       });
       document.body.appendChild(ov);
     });
   },
+
 
   async run(btn, fn){
     if (btn.disabled) return;
