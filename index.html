@@ -728,15 +728,26 @@ let CURRENT_USER = null;
 let CURRENT_ROLE = null;   // 'staff' | 'pharmacist' | 'admin'
 let CAN_VIEW_SALARY = false; // แอดมินหลัก: เห็นสรุปเงินเดือนรวม (UI เท่านั้น — ตัวบังคับจริงอยู่ที่ Edge Function)
 
-/** เรียก Edge Function พร้อมแนบ token ปัจจุบันเสมอ */
-async function callFn(name, body){
+/** เรียก Edge Function พร้อม token ล่าสุด
+ *  ถ้า token หมดอายุ (เช่น เปิดแท็บค้างไว้นานบน iPad/มือถือ ระบบต่ออายุอัตโนมัติไม่ทัน)
+ *  จะขอ token ใหม่แล้วลองซ้ำให้ 1 ครั้ง */
+async function callFn(name, body, _retried=false){
+  if (!_retried) await sb.auth.getSession();          // ต่ออายุ token ถ้าใกล้หมด/หมดแล้ว
   const { data, error } = await sb.functions.invoke(name, { body });
+  let detail = data?.error || null;
   if (error){
-    let detail = error.message;
+    detail = error.message;
     try { detail = (await error.context?.json())?.error || detail; } catch(_){}
+  }
+  if (detail){
+    const authErr = /token|jwt|401|unauthori/i.test(detail) || error?.context?.status===401;
+    if (authErr && !_retried){
+      const { error: rErr } = await sb.auth.refreshSession();
+      if (!rErr) return callFn(name, body, true);
+      throw new Error('หมดเวลาการเข้าสู่ระบบ กรุณาออกจากระบบแล้วเข้าใหม่');
+    }
     throw new Error(detail);
   }
-  if (data?.error) throw new Error(data.error);
   return data;
 }
 
