@@ -181,6 +181,9 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
 .exp-title{font-weight:700; font-size:17px}
 .exp-file{font-size:13px; color:#555; word-break:break-all}
 .exp-hint{font-size:12px; color:#92400e; background:#fffbeb; padding:6px 8px; border-radius:6px}
+.av-dialog{max-width:900px; max-height:90vh; overflow:auto}
+.av-tabs{display:flex; gap:6px; flex-wrap:wrap}
+.av-body table{font-size:13px}
 .exp-dialog .btn:disabled{opacity:.45; cursor:not-allowed}
 </style>
 </head>
@@ -562,7 +565,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <button class="btn small secondary" id="ad_exportSummaryBtn">ส่งออก Excel</button>
     </div>
     <table>
-      <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th></tr></thead>
+      <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th><th></th></tr></thead>
       <tbody id="summaryBody"></tbody>
     </table>
     </div>
@@ -2332,12 +2335,18 @@ const Admin = {
       try{
         const rows = await callFn(CONFIG.ADMIN_FN, { action:'salary-summary', payload:{month} });
         this._summary = rows;
-        U.$('summaryBody').innerHTML = rows.map(r=>`
-          <tr><td>${r.full_name}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td></tr>`).join('');
+        U.$('summaryBody').innerHTML = rows.map((r,i)=>`
+          <tr><td>${Export._esc(r.full_name||'-')}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td>
+          <td>${r.user_id?`<button class="btn small secondary" data-view-user="${i}">ดูรายละเอียด</button>`:''}</td></tr>`).join('');
       }catch(err){ U.toast(err.message,'error'); }
     };
 
-    U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx(this._summary||[]));
+    U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx((this._summary||[]).map(({user_id, ...r})=>r)));
+    U.$('summaryBody').addEventListener('click', e=>{
+      const b = e.target.closest('[data-view-user]'); if (!b) return;
+      const r = (this._summary||[])[+b.dataset.viewUser];
+      if (r) Export.run(b, ()=>AdminView.open(r, U.$('ad_month').value));
+    });
   }
 };
 
@@ -2413,9 +2422,9 @@ const Export = {
   },
 
   /* ---------- ยอดขายรายวัน ---------- */
-  dailyData(){
+  dailyData(rows=Daily.rows, totals=null){
     const fmtOt = (v)=>{ const {h,m} = Daily.splitHoursMinutes(v); return (h||m) ? `${h}:${String(m).padStart(2,'0')}` : ''; };
-    const body = Daily.rows.map(r=>[
+    const body = (rows||[]).map(r=>[
       r.day,
       r.sales===''||r.sales==null ? '' : U.num(r.sales),
       r.cases===''||r.cases==null ? '' : U.num(r.cases),
@@ -2426,7 +2435,9 @@ const Export = {
       r.noCom ? '✓' : ''
     ]);
     const t = (id)=>U.$(id)?.textContent.trim() || '';
-    const foot = ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), '', U.num(t('sumCom')), ''];
+    const foot = totals
+      ? ['รวม', totals.sales, totals.cases, 'เฉลี่ย/วัน', totals.avg, totals.ot.toFixed(2), '', totals.com, '']
+      : ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), '', U.num(t('sumCom')), ''];
     const head = ['วันที่','ยอดขาย','เคส','เข้างาน','ออกงาน','OT (ชม.:นาที)','คอมสาขา','คอมรายวัน','ไม่เข้างาน'];
     return { head, body, foot };
   },
@@ -2457,33 +2468,47 @@ const Export = {
   _esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); },
 
   /** opts: {title, head:[], rows:[{kind,cells}], numCols:Set, moneyCols:Set, widths:[%], landscape} */
-  async renderCanvas(opts){
-    const name = this._userName();
-    const W = opts.landscape ? 1123 : 794;   // A4 @96dpi
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:fixed; left:-10000px; top:0; width:${W}px; padding:40px 44px; box-sizing:border-box; background:#fff; color:#111; font-family:'Sarabun','Leelawadee UI','Tahoma',sans-serif; font-size:15px; line-height:1.45; text-align:left;`;
-    const colgroup = `<colgroup>${opts.widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup>`;
+  tableHtml(opts){
+    const ncol = opts.head.length;
     const td = (v,i,extra='')=>{
       const isNum = opts.numCols.has(i);
       const txt = this._fmt(v, opts.moneyCols.has(i));
       return `<td style="padding:7px 10px; border:1px solid #cbd5e1; ${isNum?'text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;':'text-align:left; word-break:break-word;'} ${extra}">${this._esc(txt)}</td>`;
     };
-    const ncol = opts.head.length;
     const body = opts.rows.map(r=>{
       if (r.kind==='blank') return `<tr><td colspan="${ncol}" style="height:6px; border:none"></td></tr>`;
-      if (r.kind==='grp')   return `<tr><td colspan="${ncol}" style="padding:7px 10px; border:1px solid #cbd5e1; background:#eef2ff; font-weight:700; color:#3730a3">${this._esc(r.cells[0])}</td></tr>`;
-      if (r.kind==='note')  return `<tr><td style="padding:7px 10px; border:1px solid #cbd5e1; color:#555">${this._esc(r.cells[0])}</td><td colspan="${ncol-1}" style="padding:7px 10px; border:1px solid #cbd5e1; color:#555; word-break:break-word">${this._esc(r.cells[1])}</td></tr>`;
-      const style = r.kind==='sum' ? 'font-weight:600; background:#f8fafc;' : r.kind==='net' || r.kind==='foot' ? 'font-weight:700; background:#e0e7ff; font-size:16px;' : '';
+      if (r.kind==='grp')   return `<tr><td colspan="${ncol}" style="padding:7px 10px; border:1px solid #cbd5e1; background:#eef2ff; font-weight:700; color:#3730a3; text-align:left">${this._esc(r.cells[0])}</td></tr>`;
+      if (r.kind==='note')  return `<tr><td style="padding:7px 10px; border:1px solid #cbd5e1; color:#555; text-align:left">${this._esc(r.cells[0])}</td><td colspan="${ncol-1}" style="padding:7px 10px; border:1px solid #cbd5e1; color:#555; word-break:break-word; text-align:left">${this._esc(r.cells[1])}</td></tr>`;
+      const style = r.kind==='sum' ? 'font-weight:600; background:#f8fafc;' : r.kind==='net' || r.kind==='foot' ? 'font-weight:700; background:#e0e7ff;' : '';
       return `<tr>${Array.from({length:ncol},(_,i)=>td(r.cells[i],i,style)).join('')}</tr>`;
     }).join('');
-    wrap.innerHTML = `
-      <div style="font-size:22px; font-weight:700; margin-bottom:4px">${this._esc(opts.title)}</div>
-      <div style="color:#444; margin-bottom:14px">ประจำเดือน ${this._esc(App.month)}${name?` &nbsp;·&nbsp; ${this._esc(name)}`:''}</div>
-      <table style="width:100%; border-collapse:collapse; table-layout:fixed">
-        ${colgroup}
+    return `<table style="width:100%; border-collapse:collapse; table-layout:fixed; background:#fff; color:#111">
+        <colgroup>${opts.widths.map(w=>`<col style="width:${w}%">`).join('')}</colgroup>
         <thead><tr>${opts.head.map((h,i)=>`<th style="padding:8px 10px; border:1px solid #94a3b8; background:#4f46e5; color:#fff; font-weight:600; text-align:${opts.numCols.has(i)?'right':'left'}; white-space:nowrap">${this._esc(h)}</th>`).join('')}</tr></thead>
         <tbody>${body}</tbody>
-      </table>
+      </table>`;
+  },
+  async optsXlsx(opts, filename, altOpts){
+    const aoa = [[opts.title], ['ประจำเดือน', opts.month||App.month], ...(opts.name?[['ชื่อ', opts.name]]:[]), [], opts.head,
+      ...opts.rows.map(r=>r.kind==='blank' ? [] : r.cells)];
+    const headRow = aoa.indexOf(opts.head);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = opts.head.map((h,i)=>({ wch: i===0 && opts.head.length<6 ? 28 : 13 }));
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:opts.head.length-1}}];
+    for (let r=headRow+1; r<aoa.length; r++){
+      opts.moneyCols.forEach(c=>{ const cell = ws[XLSX.utils.encode_cell({r,c})]; if (cell && cell.t==='n') cell.z = '#,##0.00'; });
+    }
+    await this.deliverWb(ws, opts.title, filename, altOpts);
+  },
+  async renderCanvas(opts){
+    const name = opts.name ?? this._userName();
+    const W = opts.landscape ? 1123 : 794;   // A4 @96dpi
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `position:fixed; left:-10000px; top:0; width:${W}px; padding:40px 44px; box-sizing:border-box; background:#fff; color:#111; font-family:'Sarabun','Leelawadee UI','Tahoma',sans-serif; font-size:15px; line-height:1.45; text-align:left;`;
+    wrap.innerHTML = `
+      <div style="font-size:22px; font-weight:700; margin-bottom:4px">${this._esc(opts.title)}</div>
+      <div style="color:#444; margin-bottom:14px">ประจำเดือน ${this._esc(opts.month||App.month)}${name?` &nbsp;·&nbsp; ${this._esc(name)}`:''}</div>
+      ${this.tableHtml(opts)}
       <div style="color:#888; font-size:12px; margin-top:12px">พิมพ์เมื่อ ${new Date().toLocaleString('th-TH')}</div>`;
     document.body.appendChild(wrap);
     try{ return await html2canvas(wrap, { backgroundColor:'#ffffff', scale:2, windowWidth:W }); }
@@ -2627,6 +2652,127 @@ const Export = {
   }
 };
 
+
+/* ---------- [13a] ADMIN VIEW: แอดมินหลักดูตารางเงินเดือน + ยอดขายรายวันของแต่ละคน (อ่านอย่างเดียว) ----
+ * ดึงข้อมูลผ่าน Edge Function action 'user-month-detail' (ตรวจสิทธิ์ can_view_salary ฝั่งเซิร์ฟเวอร์)
+ * แสดงผลเป็นตารางข้อความล้วน ไม่แตะฟอร์มของแอดมินเอง และใช้ปุ่มส่งออกชุดเดียวกับหน้าอื่น */
+const AdminView = {
+  PH_ITEMS: {
+    fixed:  [['เงินเดือน','salary'],['ใบประกอบ','license'],['ประสบการณ์','exp'],['ตำแหน่งอื่นๆ','posOther']],
+    claim:  [['OT','ot'],['com รายวัน','comDaily'],['com รายเดือน','comMonthly'],['ค่าเชียร์','cheer'],['ค่า CI','ci'],['อื่นๆ','other']],
+    deduct: [['ประกันสังคม','sso'],['หักอื่นๆ','deductOther']]
+  },
+  ST_ITEMS: {
+    fixed:  [['เงินเดือน','salary'],['ตำแหน่งอื่นๆ','posOther']],
+    claim:  [['OT','ot'],['com รายวัน','comDaily'],['อื่นๆ','other']],
+    deduct: [['ประกันสังคม','sso'],['หักอื่นๆ','deductOther']]
+  },
+  salaryRows(p, isPharm){
+    p = p || {};
+    const items = isPharm ? this.PH_ITEMS : this.ST_ITEMS;
+    const otRate = U.num(p.otRate) || (isPharm ? 170 : 62.5);
+    const rows = []; let net = 0;
+    [['fixed','รายได้ประจำ',1,'extraFixed'],['claim','รายการเบิก',1,'extraClaim'],['deduct','รายการหัก',-1,'extraDeduct']].forEach(([g,name,sign,extraKey], gi)=>{
+      if (gi) rows.push({kind:'blank', cells:[]});
+      rows.push({kind:'grp', cells:[name]});
+      let gs = 0;
+      items[g].forEach(([label,k])=>{
+        if (k==='ot'){
+          const h = U.num(p.otHours), amt = h*otRate; gs += amt;
+          rows.push({kind:'item', cells:[label, h||'', otRate, amt]});
+        } else {
+          const v = U.num(p[k]), amt = sign*v; gs += amt;
+          rows.push({kind:'item', cells:[label, p[k]===''||p[k]==null ? '' : v, sign<0 ? -1 : '', amt]});
+        }
+        if (k==='other' && p.otherNote) rows.push({kind:'note', cells:['หมายเหตุ (อื่นๆ)', p.otherNote]});
+      });
+      (p[extraKey]||[]).forEach(it=>{
+        const v = U.num(it.amount), amt = sign*v; gs += amt;
+        rows.push({kind:'item', cells:[it.label||'(ไม่มีชื่อรายการ)', v, sign<0 ? -1 : '', amt]});
+      });
+      rows.push({kind:'sum', cells:['รวม'+name,'','',gs]});
+      net += gs;
+    });
+    rows.push({kind:'blank', cells:[]});
+    rows.push({kind:'net', cells:['รวมสุทธิ','','',net]});
+    return rows;
+  },
+  dailyTotals(rows, isMobile){
+    rows = rows || [];
+    const sum = (f)=>rows.reduce((a,r)=>a+U.num(r[f]),0);
+    const mins = Math.round(sum('ot')*60);
+    return { sales:sum('sales'), cases:sum('cases'), com:sum('com'),
+      ot: Math.floor(mins/60) + Daily.roundOtFraction(mins%60),
+      avg: (()=>{
+        // เภสัชโมบาย: เฉลี่ย/วัน นับเฉพาะสาขา 1–6 (ตรงกับหน้าของเจ้าตัว)
+        const src = isMobile ? rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)))
+                             : rows.filter(r=>U.num(r.sales)>0);
+        return src.length ? src.reduce((a,r)=>a+U.num(r.sales),0)/src.length : 0;
+      })() };
+  },
+
+  async open(person, month){
+    const d = await callFn(CONFIG.ADMIN_FN, { action:'user-month-detail', payload:{ user_id:person.user_id, month } });
+    const isPharm = d.role==='pharmacist';
+    const name = d.full_name || person.full_name || '-';
+    const salTitle = isPharm ? 'เงินเดือนเภสัชกร' : 'เงินเดือนพนักงาน';
+    const daily = Array.isArray(d.daily) ? d.daily : [];
+    const isMobile = isPharm && d.pharmacistType==='mobile';
+    const totals = this.dailyTotals(daily, isMobile);
+    const { head, body, foot } = Export.dailyData(daily, totals);
+
+    const withName = (o)=>({ ...o, name, month });
+    const salOpts = ()=>withName({ title:salTitle, head:['รายการ','จำนวน','ตัวคูณ','จำนวน (บาท)'], rows:this.salaryRows(d.salary, isPharm),
+      numCols:new Set([1,2,3]), moneyCols:new Set([3]), widths:[46,18,12,24] });
+    const dayOpts = ()=>withName({ title:'ยอดขายรายวัน', head, landscape:true,
+      rows:[...body.map(c=>({kind:'item', cells:c})), {kind:'foot', cells:foot}],
+      numCols:new Set([0,1,2,4,5,7]), moneyCols:new Set([1,4,7]), widths:[7,15,7,10,11,13,11,14,12] });
+
+    const ov = document.createElement('div');
+    ov.className = 'exp-overlay';
+    ov.innerHTML = `
+      <div class="exp-dialog av-dialog" role="dialog">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+          <div><div class="exp-title">${Export._esc(name)}</div>
+          <div class="exp-file">${isPharm?(isMobile?'เภสัชโมบาย (เฉลี่ย/วัน นับสาขา 1–6)':'เภสัชกร'):'พนักงาน'} · เดือน ${Export._esc(month)} · ดูอย่างเดียว</div></div>
+          <button class="btn small secondary" data-av="close">✕ ปิด</button>
+        </div>
+        <div class="av-tabs">
+          <button class="btn small" data-av-tab="sal">${salTitle}</button>
+          <button class="btn small secondary" data-av-tab="day">ยอดขายรายวัน</button>
+        </div>
+        <div class="av-body"></div>
+        <div class="row" style="gap:6px; flex-wrap:wrap">
+          <button class="btn small" data-av="xlsx">ส่งออก Excel</button>
+          <button class="btn small secondary" data-av="pdf">ส่งออก PDF</button>
+          <button class="btn small secondary" data-av="img">📋 คัดลอกเป็นรูป</button>
+        </div>
+      </div>`;
+    let tab = 'sal';
+    const show = ()=>{
+      ov.querySelectorAll('[data-av-tab]').forEach(b=>b.className = 'btn small' + (b.dataset.avTab===tab ? '' : ' secondary'));
+      const o = tab==='sal' ? salOpts() : dayOpts();
+      const empty = tab==='sal' ? !d.salary : !daily.length;
+      ov.querySelector('.av-body').innerHTML = empty
+        ? '<p class="hint">ยังไม่มีข้อมูลที่บันทึกไว้ของเดือนนี้</p>'
+        : `<div class="tbl-scroll">${Export.tableHtml(o)}</div>`;
+    };
+    const fileBase = ()=>`${tab==='sal'?salTitle:'ยอดขายรายวัน'}_${name}_${month}`;
+    ov.addEventListener('click', e=>{
+      if (e.target===ov) return ov.remove();
+      const t = e.target.closest('[data-av-tab]'); if (t){ tab = t.dataset.avTab; return show(); }
+      const b = e.target.closest('[data-av]'); if (!b) return;
+      const act = b.dataset.av;
+      if (act==='close') return ov.remove();
+      const opts = tab==='sal' ? salOpts : dayOpts;
+      if (act==='pdf')  Export.run(b, async ()=>Export.deliver(await Export.buildPdf(opts()), fileBase()+'.pdf'));
+      if (act==='img')  Export.run(b, ()=>Export.copyImage(opts));
+      if (act==='xlsx') Export.run(b, ()=>Export.optsXlsx(opts(), fileBase()+'.xlsx', opts));
+    });
+    document.body.appendChild(ov);
+    show();
+  }
+};
 
 /* ---------- [13b] PASSWORD RESET (ผู้ใช้รีเซ็ตรหัสผ่านเองทางอีเมล) ---------- */
 const PwReset = {
