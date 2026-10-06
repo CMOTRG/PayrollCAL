@@ -321,7 +321,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
           <tr>
             <th>รวม</th>
             <th id="sumSales">0</th><th id="sumCases">0</th>
-            <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span><span id="avgSalesNote" class="hint"></span></th>
+            <th colspan="2">เฉลี่ย/วัน <span id="avgSales">0</span> · เคส <span id="avgCases">0</span><span id="avgSalesNote" class="hint"></span></th>
             <th id="sumOt">0.00</th>
             <th></th>
 <th id="sumCom">0.00</th><th></th>
@@ -1253,7 +1253,8 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
 
     const totals={
       sales:sum('sales'), cases:sum('cases'), ot:otRounded, com:sum('com'),
-      avg: workedDays ? sum('sales')/workedDays : 0
+      avg: workedDays ? sum('sales')/workedDays : 0,
+      avgCases: workedDays ? this.rows.filter(r=>U.num(r.sales)>0).reduce((a,r)=>a+U.num(r.cases),0)/workedDays : 0
     };
     // เภสัชโมบาย: ยอดเฉลี่ย/วัน (ใช้คิดคอมรายเดือน) นับเฉพาะวันที่ปฏิบัติงานที่สาขา 1–6
     // สาขา 7, 8, 9 ยอดยังต่ำเกินไป จึงไม่นำยอดขายและจำนวนวันมาคิดรวม (ยอดขายรวมยังแสดงครบทุกสาขา)
@@ -1262,12 +1263,14 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
       const avgRows = this.rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)));
       const avgSum = avgRows.reduce((a,r)=>a+U.num(r.sales),0);
       totals.avg = avgRows.length ? avgSum/avgRows.length : 0;
+      totals.avgCases = avgRows.length ? avgRows.reduce((a,r)=>a+U.num(r.cases),0)/avgRows.length : 0;
     }
     U.setText('sumSales',U.money(totals.sales));
     U.setText('sumCases',totals.cases);
     U.setText('sumOt',totals.ot.toFixed(2));
     U.setText('sumCom',U.money(totals.com));
     U.setText('avgSales',U.money(totals.avg));
+    U.setText('avgCases',totals.avgCases.toFixed(2));
     U.setText('avgSalesNote', isMobileAvg ? ' (เฉพาะสาขา 1–6)' : '');
     this.totals=totals;
     Salary.syncFromDaily(totals);
@@ -2447,8 +2450,8 @@ const Export = {
     ]);
     const t = (id)=>U.$(id)?.textContent.trim() || '';
     const foot = totals
-      ? ['รวม', totals.sales, totals.cases, 'เฉลี่ย/วัน', totals.avg, totals.ot.toFixed(2), '', totals.com, '']
-      : ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), '', U.num(t('sumCom')), ''];
+      ? ['รวม', totals.sales, totals.cases, 'เฉลี่ย/วัน', totals.avg, totals.ot.toFixed(2), `เคสเฉลี่ย ${U.num(totals.avgCases).toFixed(2)}`, totals.com, '']
+      : ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), `เคสเฉลี่ย ${t('avgCases')}`, U.num(t('sumCom')), ''];
     const head = ['วันที่','ยอดขาย','เคส','เข้างาน','ออกงาน','OT (ชม.:นาที)','คอมสาขา','คอมรายวัน','ไม่เข้างาน'];
     return { head, body, foot };
   },
@@ -2719,6 +2722,11 @@ const AdminView = {
         const src = isMobile ? rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)))
                              : rows.filter(r=>U.num(r.sales)>0);
         return src.length ? src.reduce((a,r)=>a+U.num(r.sales),0)/src.length : 0;
+      })(),
+      avgCases: (()=>{
+        const src = isMobile ? rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)))
+                             : rows.filter(r=>U.num(r.sales)>0);
+        return src.length ? src.reduce((a,r)=>a+U.num(r.cases),0)/src.length : 0;
       })() };
   },
 
