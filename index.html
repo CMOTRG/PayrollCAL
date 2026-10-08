@@ -1746,7 +1746,18 @@ const LeaveCalc = {
   /** "YYYY-MM-DD" -> {y,m} (m: 1-12) หรือ null ถ้าแปลงไม่ได้/ยังไม่ตั้งค่า */
   parseDate(str){
     const m = String(str||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return m ? { y:+m[1], m:+m[2] } : null;
+    return m ? { y:+m[1], m:+m[2], d:+m[3] } : null;
+  },
+
+  /** เดือนที่ "ยังไม่ครบอายุงาน" ในปีที่ดู (array 12 ช่อง true=ล็อก) — นับครบปีตามวัน/เดือนที่เริ่มงานจริง
+   *  ครบเงื่อนไขวันที่ = วันเริ่มงาน + (tenureYear-1) ปี (วัน/เดือนเดียวกัน) เช่น เริ่ม 01/05/2025 ลาป่วยไม่มีใบ
+   *  (เข้าปีที่ 2) ใช้ได้ตั้งแต่ 01/05/2026 → ในปี 2026 เดือน ม.ค.-เม.ย. ล็อก ส่วน พ.ค.-ธ.ค. ใช้ได้ */
+  lockedMonths(rule, hireYm, year){
+    const out = Array(12).fill(false);
+    if (!hireYm || !rule.tenureYear) return out;
+    if (year !== hireYm.y + (rule.tenureYear - 1)) return out;
+    for (let i=0; i < hireYm.m - 1; i++) out[i] = true;
+    return out;
   },
 
   /** โควตาเต็มปีของ rule หนึ่งๆ ในปีที่ดู — คืน null ถ้ายังไม่ถึงเกณฑ์อายุงาน หรือเพศไม่ตรงกับ rule (locked)
@@ -1844,10 +1855,12 @@ const LeaveCalc = {
       const q = this.effectiveQuota(rule, role, hireYm, year, carryDays, gender, priorUsedTotals[rule.key]);
       const locked = q === null;
       if (rule.key === 'accum_holiday'){ accumRules.push({ rule, q, locked }); return; }
-      const used = Array.from({length:12}, (_,i)=> U.num((usedMap?.[rule.key]||[])[i]));
+      const monthLocked = locked ? Array(12).fill(true) : this.lockedMonths(rule, hireYm, year);
+      // เดือนก่อนวันครบอายุงานใช้ไม่ได้ — ไม่นำยอดที่กรอกในเดือนนั้นมาหัก
+      const used = Array.from({length:12}, (_,i)=> monthLocked[i] ? 0 : U.num((usedMap?.[rule.key]||[])[i]));
       const remain = []; let running = locked ? 0 : q;
       for (let i=0;i<12;i++){ running -= used[i]; remain.push(running); }
-      data[rule.key] = { quota: locked?0:q, used, remain, locked };
+      data[rule.key] = { quota: locked?0:q, used, remain, locked, monthLocked };
     });
     // วันหยุดสะสมคำนวณหลังสุด เพราะต้องรวมคงเหลือของ rule แหล่งสะสม (poolFrom)
     accumRules.forEach(({ rule, q, locked })=>{
@@ -1964,6 +1977,8 @@ const Leave = {
         : (d.locked ? '-' : d.quota);
       const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
         const remain = d.remain[i];
+        if (d.monthLocked && d.monthLocked[i] && !d.locked)
+          return `<td class="month-sep hint" title="ยังไม่ครบอายุงานตามเงื่อนไข">-</td><td class="leave-remain hint" data-remain-key="${rule.key}" data-remain-m="${i}">-</td>`;
         return `${rule.key==='accum_holiday'
 ? `<td class="month-sep"><div class="leave-pair"><input type="number" class="leave-off-left-input" data-m="${i}" min="0" max="${CONFIG.MONTHLY_OFF_DAYS}" step="0.5" placeholder="+" title="เก็บเพิ่ม: วันหยุดประจำเดือนที่เหลือ/ไม่ได้ใช้ (0-${CONFIG.MONTHLY_OFF_DAYS} วัน)" value="${d.leftRaw[i] ?? ''}"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" placeholder="−" title="ใช้วันสะสมไป" value="${d.used[i]||''}"></div></td>`
 : `<td class="month-sep"><input type="number" class="leave-used-input" data-key="${rule.key}" data-m="${i}" min="0" step="0.5" value="${d.used[i]||''}"></td>`}
@@ -2063,6 +2078,7 @@ const Leave = {
       const d = built.data[rule.key];
       for (let i=0;i<12;i++){
         const cell = document.querySelector(`[data-remain-key="${rule.key}"][data-remain-m="${i}"]`);
+        if (cell && d.monthLocked && d.monthLocked[i]) continue;
         if (cell){ cell.textContent = d.remain[i]; cell.classList.toggle('neg', d.remain[i]<0); }
       }
     });
@@ -2195,7 +2211,7 @@ const built = LeaveCalc.build(role, p.start_date, carry, p.leave_used, this.year
       const genderTd = showGender ? `<td>${Admin.GENDER_LABEL[p.gender]||'-'}</td>` : '';
       const cells = rules.map(r=>{
         const d = built.data[r.key];
-        if (d.locked) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
+        if (d.locked || (d.monthLocked && d.monthLocked[mi])) return `<td class="month-sep hint">-</td><td class="hint">-</td>`;
         const isAcc = r.key === 'accum_holiday';
         const used = isAcc ? ((d.leftRaw[mi] !== null ? '+'+d.leftRaw[mi] : '') + (d.used[mi] ? ' −'+d.used[mi] : '')).trim() : (d.used[mi] || 0);
         const remain = d.remain[mi];
