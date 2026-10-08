@@ -251,6 +251,8 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <button data-tab="staff"  class="stf-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>เงินเดือนพนักงาน</button>
       <button data-tab="tiers"  class="pharm-strict"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-11M12 6V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/></svg>ตั้งค่าคอมมิชชั่น</button>
       <button data-tab="leave"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>วันลา/วันหยุด</button>
+      <button data-tab="leaveadmin" class="hr-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h8M8 18h5"/></svg>สรุปวันลา (HR)</button>
+      <button data-tab="notes" class="hr-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>โน้ต HR/แอดมิน</button>
       <button data-tab="admin"  class="admin-only"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/></svg>ผู้ดูแลระบบ</button>
     </div>
 
@@ -497,8 +499,13 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <p class="hint" id="leaveQuotaNote"></p>
     </div>
 
+  </section>
+
+  <!-- ---------- TAB: สรุปวันลา (HR/แอดมิน) — แยกจากวันลาส่วนตัว ไม่ทับข้อมูลของผู้ดูแลเอง ---------- -->
+  <section id="tab-leaveadmin" class="tab card hide">
+    <h3>สรุปวันลา / วันหยุด (HR)</h3>
     <!-- มุมมองผู้ดูแลระบบ: รวมวันลาของทุกคนตามเดือนที่เลือก -->
-    <div id="leaveAdminView" class="hide">
+    <div id="leaveAdminView">
       <p class="hint">ภาพรวมวันลา/วันหยุดของพนักงานและเภสัชกรทุกคน — เลือกปีและเดือนที่ต้องการดู</p>
       <div class="row">
         <label class="hint" style="margin:0">ปี</label>
@@ -526,6 +533,27 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
     </div>
   </section>
 
+  <!-- ---------- TAB: โน้ต HR/แอดมิน — เห็นเฉพาะ HR และแอดมิน ---------- -->
+  <section id="tab-notes" class="tab card hide">
+    <h3>โน้ต HR / แอดมิน</h3>
+    <p class="hint">บันทึกภายในที่เห็นเฉพาะ HR และผู้ดูแลระบบ — พนักงานทั่วไปมองไม่เห็น เลือก "ทั่วไป" หรือผูกกับพนักงานรายคนได้</p>
+    <div class="row" style="align-items:flex-start">
+      <select id="nt_subject" class="role-select"></select>
+      <textarea id="nt_body" rows="2" style="flex:1;min-width:220px" placeholder="เช่น ขอลาล่วงหน้า 15 พ.ย. / แจ้งเปลี่ยนกะ"></textarea>
+      <button class="btn small" id="nt_addBtn" type="button">เพิ่มโน้ต</button>
+    </div>
+    <div class="row">
+      <label class="hint" style="margin:0">กรอง</label>
+      <select id="nt_filter" class="role-select"></select>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>วันที่</th><th>เรื่องของ</th><th style="text-align:left">โน้ต</th><th>ผู้บันทึก</th><th></th></tr></thead>
+        <tbody id="nt_body_rows"></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ---------- TAB: ADMIN ---------- -->
   <section id="tab-admin" class="tab card hide">
     <h3>ผู้ดูแลระบบ</h3>
@@ -538,7 +566,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
 
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ประเภท</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th><th class="salary-access-only hide">ดูเงินเดือนรวม</th></tr></thead>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ตำแหน่งงาน</th><th>สิทธิ์พิเศษ</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th><th class="salary-access-only hide">ดูเงินเดือนรวม</th></tr></thead>
         <tbody id="userListBody"></tbody>
       </table>
     </div>
@@ -726,6 +754,9 @@ const U = {
 const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 let CURRENT_USER = null;
 let CURRENT_ROLE = null;   // 'staff' | 'pharmacist' | 'admin'
+let ACCESS_LEVEL = '';   // สิทธิ์พิเศษซ้อนบนตำแหน่งงาน: '' | 'hr' | 'admin' (profiles.access_level)
+let IS_ADMIN = false;     // แอดมิน = access_level 'admin' หรือบัญชีเก่าที่ role = 'admin'
+let IS_HR = false;        // HR หรือแอดมิน — เห็นหน้าสรุปวันลาและโน้ต
 let CAN_VIEW_SALARY = false; // แอดมินหลัก: เห็นสรุปเงินเดือนรวม (UI เท่านั้น — ตัวบังคับจริงอยู่ที่ Edge Function)
 
 /** เรียก Edge Function พร้อม token ล่าสุด
@@ -1941,10 +1972,13 @@ const Leave = {
   saveUsed:  U.debounce(()=>{ Store.setUser(`leaveUsed:${Leave.year}`, Leave.usedMap).catch(()=>{}); }, 500),
 
   render(){
-    const isAdmin = CURRENT_ROLE === 'admin';
-    U.$('leaveOwnView').classList.toggle('hide', isAdmin);
-    U.$('leaveAdminView').classList.toggle('hide', !isAdmin);
-    if (isAdmin){ AdminLeave.ensureLoaded(); return; }
+    // บัญชีแอดมินแบบเก่า (role = 'admin' ไม่มีตำแหน่งงาน) ไม่มีวันลาของตัวเอง — ให้ไปดูแท็บ "สรุปวันลา (HR)"
+    // ส่วน HR/แอดมินที่มีตำแหน่งงาน (staff/pharmacist + access_level) เห็นวันลาของตัวเองตามปกติ
+    if (CURRENT_ROLE === 'admin'){
+      U.$$('#leaveOwnView > :not(#leaveQuotaTitle)').forEach(el=>el.classList.add('hide'));
+      U.setText('leaveQuotaTitle', 'บัญชีนี้ยังไม่ได้กำหนดตำแหน่งงาน — ดูวันลาของทุกคนที่แท็บ "สรุปวันลา (HR)"');
+      return;
+    }
 
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
     const { row1, row2 } = LeaveCalc.monthHeadHtml();
@@ -2236,8 +2270,56 @@ const built = LeaveCalc.build(role, p.start_date, carry, p.leave_used, this.year
  * ทุก action เรียกผ่าน Edge Function เดียว (admin-api)
  * เซิร์ฟเวอร์เช็ค role=admin เองทุกครั้ง ไม่เชื่อ role จาก client
  * ----------------------------------------------------------*/
+/* ---------- NOTES: โน้ต HR/แอดมิน (ตาราง admin_notes อ่าน/เขียนผ่าน Edge Function เท่านั้น — client อ่านตรงไม่ได้) ---------- */
+const Notes = {
+  _loaded:false, notes:[], people:[],
+  esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
+  ensureLoaded(){ if (!this._loaded) this.load(); },
+  async load(){
+    try{
+      const d = await callFn(CONFIG.ADMIN_FN, { action:'notes-list' });
+      this.notes = d.notes || []; this.people = d.people || []; this._loaded = true;
+      const opts = `<option value="">ทั่วไป</option>` + this.people.map(p=>`<option value="${p.id}">${this.esc(p.full_name||'-')}</option>`).join('');
+      const keepS = U.$('nt_subject').value, keepF = U.$('nt_filter').value;
+      U.$('nt_subject').innerHTML = opts; U.$('nt_subject').value = keepS || '';
+      U.$('nt_filter').innerHTML = `<option value="*">ทั้งหมด</option>` + opts; U.$('nt_filter').value = keepF || '*';
+      this.render();
+    }catch(err){ U.toast('โหลดโน้ตไม่สำเร็จ: '+err.message,'error'); }
+  },
+  render(){
+    const f = U.$('nt_filter').value || '*';
+    const nameOf = id => id ? (this.people.find(p=>p.id===id)?.full_name || '-') : 'ทั่วไป';
+    const list = this.notes.filter(n => f==='*' || (n.subject_user_id||'') === f);
+    U.$('nt_body_rows').innerHTML = list.length ? list.map(n=>`<tr>
+      <td>${new Date(n.created_at).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'})}</td>
+      <td>${this.esc(nameOf(n.subject_user_id))}</td>
+      <td style="text-align:left;white-space:pre-wrap">${this.esc(n.body)}</td>
+      <td>${this.esc(n.author_name||'-')}</td>
+      <td>${(n.author_id===CURRENT_USER.id || IS_ADMIN) ? `<button class="btn-reset" data-del-note="${n.id}">ลบ</button>` : ''}</td>
+    </tr>`).join('') : `<tr><td colspan="5" class="hint">ยังไม่มีโน้ต</td></tr>`;
+  },
+  bind(){
+    U.$('nt_filter').onchange = () => this.render();
+    U.$('nt_addBtn').onclick = async () => {
+      const body = U.$('nt_body').value.trim();
+      if (!body) return U.toast('พิมพ์โน้ตก่อน','warn');
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'notes-add', payload:{ body, subject_user_id: U.$('nt_subject').value || null } });
+        U.$('nt_body').value=''; U.toast('บันทึกโน้ตแล้ว','ok'); this.load();
+      }catch(err){ U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
+    };
+    U.$('nt_body_rows').addEventListener('click', async (e)=>{
+      const b = e.target.closest('[data-del-note]'); if (!b) return;
+      if (!confirm('ลบโน้ตนี้?')) return;
+      try{ await callFn(CONFIG.ADMIN_FN, { action:'notes-delete', payload:{ id:+b.dataset.delNote } }); this.load(); }
+      catch(err){ U.toast('ลบไม่สำเร็จ: '+err.message,'error'); }
+    });
+  }
+};
+
 const Admin = {
-  ROLE_LABEL: { pharmacist:'เภสัชกรสาขา', staff:'พนักงาน/ผู้ช่วย', admin:'ผู้ดูแลระบบ' },
+  ROLE_LABEL: { pharmacist:'เภสัชกรสาขา', staff:'พนักงาน/ผู้ช่วย', admin:'ผู้ดูแลระบบ (แบบเก่า)' },
+  ACCESS_LABEL: { '':'-', hr:'HR (ดูแลวันลา)', admin:'ผู้ดูแลระบบ' },
   GENDER_LABEL: { male:'ชาย', female:'หญิง' },
 
   async loadUsers(){
@@ -2248,9 +2330,15 @@ const Admin = {
         const roleCell = isSelf
           ? `<span title="ไม่สามารถเปลี่ยนบทบาทของตัวเองได้">${this.ROLE_LABEL[u.role]||u.role}</span>`
           : `<select class="role-select" data-role-user="${u.id}" data-prev="${u.role}">
-              ${['staff','pharmacist','admin'].map(r=>
+              ${(u.role==='admin' ? ['staff','pharmacist','admin'] : ['staff','pharmacist']).map(r=>
                 `<option value="${r}" ${r===u.role?'selected':''}>${this.ROLE_LABEL[r]}</option>`
               ).join('')}
+            </select>`;
+        const acc = u.access_level || '';
+        const accessCell = isSelf
+          ? `<span title="ไม่สามารถเปลี่ยนสิทธิ์ของตัวเองได้">${this.ACCESS_LABEL[acc]||acc}</span>`
+          : `<select class="access-select" data-access-user="${u.id}" data-prev="${acc}">
+              ${['','hr','admin'].map(a=>`<option value="${a}" ${a===acc?'selected':''}>${this.ACCESS_LABEL[a]}</option>`).join('')}
             </select>`;
         const genderCell = `<select class="gender-select" data-gender-user="${u.id}" data-prev="${u.gender||''}">
               <option value="" ${!u.gender?'selected':''}>-</option>
@@ -2259,13 +2347,14 @@ const Admin = {
             </select>`;
         return `<tr>
           <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${roleCell}</td>
+          <td>${accessCell}</td>
           <td>${genderCell}</td>
           <td><input type="date" class="start-date-input" data-start-user="${u.id}" data-prev="${u.start_date||''}" value="${u.start_date||''}"></td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
           <td class="salary-access-only ${CAN_VIEW_SALARY?'':'hide'}">${
-            u.role==='admin' && !isSelf
+            u.is_admin && !isSelf
               ? `<input type="checkbox" data-salary-user="${u.id}" ${u.can_view_salary?'checked':''}>`
-              : (u.role==='admin' && u.can_view_salary ? '✓' : '')
+              : (u.is_admin && u.can_view_salary ? '✓' : '')
           }</td>
         </tr>`;
       }).join('');
@@ -2336,6 +2425,20 @@ const Admin = {
         await callFn(CONFIG.ADMIN_FN, { action:'set-salary-access', payload:{ user_id:cb.dataset.salaryUser, allow } });
         U.toast('บันทึกสิทธิ์แล้ว','ok');
       }catch(err){ cb.checked=!allow; U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
+    });
+
+    // แต่งตั้ง/ถอนสิทธิ์พิเศษ (HR / ผู้ดูแลระบบ) — ไม่แตะตำแหน่งงานและข้อมูลเงินเดือน/วันลาของคนนั้น
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const sel=e.target.closest('.access-select'); if(!sel) return;
+      const userId=sel.dataset.accessUser, prev=sel.dataset.prev, level=sel.value;
+      if (level===prev) return;
+      if (!confirm(`ยืนยันตั้งสิทธิ์พิเศษเป็น "${this.ACCESS_LABEL[level]}" ?\n(ข้อมูลเงินเดือนและวันลาของพนักงานคนนี้ยังอยู่ครบ)`)){ sel.value=prev; return; }
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-access', payload:{ user_id:userId, level } });
+        sel.dataset.prev = level;
+        U.toast('บันทึกสิทธิ์พิเศษแล้ว','ok');
+        this.loadUsers();
+      }catch(err){ sel.value=prev; U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
     });
 
     // เปลี่ยนบทบาทสมาชิก — ยืนยันก่อนทุกครั้งเพราะกระทบสิทธิ์การเข้าถึงของผู้ใช้คนนั้นทันที
@@ -2866,7 +2969,11 @@ const App = {
     // ใช้ maybeSingle() แทน single() — single() จะโยน error ถ้าไม่มีแถวเลย ทำให้ profile
     // กลายเป็น undefined แบบเงียบๆ และ role fallback เป็น 'staff' โดยไม่มีใครรู้ว่าเกิดอะไรขึ้น
     let { data: profile, error: profErr } = await sb.from('profiles')
-      .select('role, full_name, can_view_salary').eq('id', CURRENT_USER.id).maybeSingle();
+      .select('role, full_name, can_view_salary, access_level').eq('id', CURRENT_USER.id).maybeSingle();
+    if (profErr){ // คอลัมน์ access_level ยังไม่ถูกสร้าง (ยังไม่ได้รัน SQL) — ลองแบบไม่มีคอลัมน์นี้
+      ({ data: profile, error: profErr } = await sb.from('profiles')
+        .select('role, full_name, can_view_salary').eq('id', CURRENT_USER.id).maybeSingle());
+    }
     if (profErr){ // คอลัมน์ can_view_salary ยังไม่ถูกสร้าง — ถอยกลับไปแบบเดิมเพื่อไม่ให้ล็อกอินพัง
       ({ data: profile } = await sb.from('profiles')
         .select('role, full_name').eq('id', CURRENT_USER.id).maybeSingle());
@@ -2895,7 +3002,10 @@ const App = {
     }
 
     CURRENT_ROLE = profile?.role || 'staff';
-    CAN_VIEW_SALARY = CURRENT_ROLE === 'admin' && profile?.can_view_salary === true;
+    ACCESS_LEVEL = profile?.access_level || '';
+    IS_ADMIN = CURRENT_ROLE === 'admin' || ACCESS_LEVEL === 'admin';
+    IS_HR = IS_ADMIN || ACCESS_LEVEL === 'hr';
+    CAN_VIEW_SALARY = IS_ADMIN && profile?.can_view_salary === true;
     if (!profile){
       // ไม่มี pendingSignup ให้ใช้ หรือ complete-signup ล้มเหลว — เตือนแทนที่จะปล่อยให้เข้าใจผิดว่าเป็น staff จริงๆ
       U.toast('บัญชีนี้ยังไม่ได้กำหนดบทบาทในระบบ (แสดงผลเป็นพนักงานชั่วคราว) กรุณาติดต่อผู้ดูแลระบบ', 'warn');
@@ -2903,7 +3013,7 @@ const App = {
 
     U.$('authOverlay').classList.add('hide');
     U.$('appShell').classList.remove('hide');
-    U.setText('whoami', `${profile?.full_name||CURRENT_USER.email} (${CURRENT_ROLE})`);
+    U.setText('whoami', `${profile?.full_name||CURRENT_USER.email} (${CURRENT_ROLE}${ACCESS_LEVEL ? ' + '+ACCESS_LEVEL.toUpperCase() : ''})`);
     if (U.$('editNameInput')) U.$('editNameInput').value = profile?.full_name || '';
 
     this.applyRoleVisibility();
@@ -2916,18 +3026,19 @@ const App = {
     Tiers.render();
     await BranchTiers.load();
     this.applyPharmTypeVisibility();
-    if (CURRENT_ROLE === 'admin') BranchTiers.render();
+    if (IS_ADMIN) BranchTiers.render();
     await Leave.load();
     await this.loadMonthData();
 
-    if (CURRENT_ROLE === 'admin') Admin.loadUsers();
+    if (IS_ADMIN) Admin.loadUsers();
   },
 
   applyRoleVisibility(){
     const role = CURRENT_ROLE;
     U.$$('.pharm-only').forEach(el => el.classList.toggle('hide', !(role==='pharmacist'||role==='admin')));
     U.$$('.stf-only').forEach(el => el.classList.toggle('hide', !(role==='staff')));
-    U.$$('.admin-only').forEach(el => el.classList.toggle('hide', role!=='admin'));
+    U.$$('.admin-only').forEach(el => el.classList.toggle('hide', !IS_ADMIN));
+    U.$$('.hr-only').forEach(el => el.classList.toggle('hide', !IS_HR));
     U.$$('.salary-access-only').forEach(el => el.classList.toggle('hide', !CAN_VIEW_SALARY));
     // pharm-strict: เฉพาะเภสัชกรจริงๆ เท่านั้น (ต่างจาก pharm-only ที่ admin ก็เห็นได้ด้วย)
     // ใช้กับตั้งค่าคอมมิชชั่นส่วนตัว — ตอนนี้ admin ก็มีหน้านี้ของตัวเองเหมือนเภสัชกร (ข้อมูลแยกรายบัญชี ไม่ปนกัน)
@@ -2963,6 +3074,8 @@ const App = {
     U.$$('#tabNav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
     U.$$('.tab').forEach(s=>s.classList.add('hide'));
     U.$(`tab-${name}`)?.classList.remove('hide');
+    if (name === 'leaveadmin') AdminLeave.ensureLoaded();
+    if (name === 'notes') Notes.ensureLoaded();
     try{ localStorage.setItem('lastTab', name); }catch(_){}
   },
   // จำแท็บล่าสุดที่เปิดไว้ (localStorage) กันปัญหารีเฟรชแล้วกระโดดกลับไปแท็บแรกของ role ทุกครั้ง
@@ -2970,7 +3083,7 @@ const App = {
   // ไม่งั้นจะโดนดักไปเปิดแท็บที่ role นี้ไม่มีสิทธิ์เห็น
   openDefaultTab(){
     const role=CURRENT_ROLE;
-    const fallback = role==='pharmacist' ? 'daily' : role==='staff' ? 'staff' : 'admin';
+    const fallback = role==='pharmacist' ? 'daily' : role==='staff' ? 'staff' : IS_ADMIN ? 'admin' : 'leave';
     let saved = null;
     try{ saved = localStorage.getItem('lastTab'); }catch(_){}
     const btn = saved && U.$$('#tabNav button').find(b=>b.dataset.tab===saved);
@@ -3011,6 +3124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Leave.bind();
   AdminLeave.bindControls();
   Admin.bind();
+  Notes.bind();
   Export.bind();
 
   PwReset.bind();
