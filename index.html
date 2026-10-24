@@ -1859,9 +1859,10 @@ const LeaveCalc = {
       if (leftRaw[i] !== null) running += leftRaw[i];
       running -= used[i];
       if (leftRaw[i] !== null || used[i] > 0) lastIdx = i;
-      remain.push(running + (i === 11 ? U.num(src[11]) : 0)); // ส่วนที่เหลือของ poolFrom รวมเข้ากองสะสมตอนสิ้นปี (ธ.ค.) เท่านั้น
+      remain.push(running); // ช่องคงเหลือรายเดือน (รวม ธ.ค.) ไม่รวมส่วนที่เหลือของ poolFrom
     }
-    const balance = remain[11];
+    // ส่วนที่เหลือของ poolFrom ไม่แสดงในช่อง ธ.ค. แต่รวมเข้ายอดสิ้นปี เพื่อยกไปเป็น "สิทธิ์ทั้งปี" ของวันหยุดสะสมต้นปีถัดไป
+    const balance = remain[11] + U.num(src[11]);
     return { quota:carry, used, leftRaw, remain, locked:false, balance, lastIdx, isFinal:leftRaw[11] !== null,
       cashout:Math.max(0, balance - cap), carryNext: noCarry ? 0 : Math.max(0, Math.min(balance, cap)), noCarry };
   },
@@ -1874,7 +1875,7 @@ const LeaveCalc = {
     const cap = rules.find(r=>r.key==='accum_holiday')?.carryCap ?? 0;
     let carry = 0;
     for (const yd of (yearsData || [])){
-      if (yd.carryOverride !== null && yd.carryOverride !== undefined) carry = Math.max(0, Math.min(U.num(yd.carryOverride), cap));
+      if (yd.year <= CONFIG.CARRY_CHAIN_START_YEAR && yd.carryOverride !== null && yd.carryOverride !== undefined) carry = Math.max(0, Math.min(U.num(yd.carryOverride), cap));
       const built = this.build(role, hireDateStr, carry, yd.used || {}, yd.year, gender, {});
       carry = built.data.accum_holiday.carryNext;
     }
@@ -1933,7 +1934,8 @@ const Leave = {
     const g = await Store.getUser('gender', null);
     this.gender = g?.value || '';
     const carry = await Store.getUser(`leaveCarry:${this.year}`, null);
-    this.carryOverride = (carry && carry.days !== null && carry.days !== undefined && carry.days !== '') ? U.num(carry.days) : null;
+    // ตั้งแต่ปีถัดจาก CARRY_CHAIN_START_YEAR ห้ามกรอกเอง — ใช้ยอดยกมาจากปีก่อนเท่านั้น
+    this.carryOverride = (this.year <= CONFIG.CARRY_CHAIN_START_YEAR) && (carry && carry.days !== null && carry.days !== undefined && carry.days !== '') ? U.num(carry.days) : null;
     this.usedMap = await Store.getUser(`leaveUsed:${this.year}`, {});
     const role = CURRENT_ROLE === 'pharmacist' ? 'pharmacist' : 'staff';
     this.priorUsedTotals = await this.computePriorUsedTotals(role);
@@ -2014,7 +2016,7 @@ const Leave = {
     U.$('leaveQuotaBody').innerHTML = built.rules.map(rule=>{
       const d = built.data[rule.key];
       const quotaCell = rule.key === 'accum_holiday'
-        ? `<input type="number" class="leave-carry-input" min="0" max="${rule.carryCap}" step="1" value="${this.carryDays||0}">`
+        ? (this.year > CONFIG.CARRY_CHAIN_START_YEAR ? `${this.carryDays||0}` : `<input type="number" class="leave-carry-input" min="0" max="${rule.carryCap}" step="1" value="${this.carryDays||0}">`)
         : (d.locked ? '-' : d.quota);
       const months = CONFIG.MONTH_LABELS_TH.map((_,i)=>{
         const remain = d.remain[i];
@@ -2246,7 +2248,7 @@ const AdminLeave = {
     const mi = this.month - 1;
     U.$(bodyId).innerHTML = people.map(p=>{
       const priorUsedTotals = this.priorUsedTotals.get(this.personKey(p)) || {};
-      const ovr = U.num(p.leave_carry) > 0 ? U.num(p.leave_carry) : null;
+      const ovr = (this.year <= CONFIG.CARRY_CHAIN_START_YEAR && U.num(p.leave_carry) > 0) ? U.num(p.leave_carry) : null;
 const carry = ovr ?? (this.carryAuto?.get(this.personKey(p)) ?? 0);
 const built = LeaveCalc.build(role, p.start_date, carry, p.leave_used, this.year, p.gender, priorUsedTotals);
       const genderTd = showGender ? `<td>${Admin.GENDER_LABEL[p.gender]||'-'}</td>` : '';
