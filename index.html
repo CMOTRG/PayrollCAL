@@ -1748,16 +1748,46 @@ t=setTimeout(()=>{ if(m!==App.month||App.loading) return; Store.setUser(`pharmSa
     });
   },
 
+  /* ---- ยกค่าจากเดือนล่าสุดมาใช้ ----
+   * ถ้าเดือนที่เปิดยังไม่มีข้อมูล (หรือมีแต่ค่าว่าง) ให้คัดลอกค่าทั้งหมดจากเดือนล่าสุดที่มีข้อมูล (ย้อนหลังสูงสุด 12 เดือน)
+   * ยกเว้น OT (ชั่วโมง) และค่าคอม — สองค่านี้ยึดตามตารางคำนวณรายวันของเดือนนั้น (syncFromDaily)
+   * ---------------------------------------------------- */
+  CARRY_SKIP: ['otHours','comDaily','comMonthly'],
+  isBlank(d){
+    if (!d) return true;
+    return !Object.entries(d).some(([k,v])=>{
+      if (this.CARRY_SKIP.includes(k) || k==='otRate') return false;
+      if (Array.isArray(v)) return v.some(it=>U.num(it.amount) || (it.label||'').trim());
+      return typeof v==='string' && isNaN(Number(v)) ? v.trim()!=='' : U.num(v)!==0;
+    });
+  },
+  async loadWithCarry(keyPrefix){
+    const cur = await Store.getUser(`${keyPrefix}:${App.month}`, null);
+    if (!this.isBlank(cur)) return cur;
+    const [y,m] = App.month.split('-').map(Number);
+    for (let i=1;i<=12;i++){
+      const d = new Date(y, m-1-i, 1);
+      const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      const prev = await Store.getUser(`${keyPrefix}:${key}`, null);
+      if (!this.isBlank(prev)){
+        const out = { ...(cur||{}), ...prev };
+        this.CARRY_SKIP.forEach(k=>{ out[k] = cur?.[k] ?? 0; });
+        return out;
+      }
+    }
+    return cur || {};
+  },
+
   async load(){
     const skip = ['extraFixed','extraClaim','extraDeduct'];
-    const ph = (await Store.getUser(`pharmSalary:${App.month}`, null)) || {};
+    const ph = (await this.loadWithCarry('pharmSalary')) || {};
     U.setVal('ph_otherNote','');
     Object.entries(ph).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('ph_'+k, v); });
     this.renderExtra('ph','fixed',  ph.extraFixed  || []);
     this.renderExtra('ph','claim',  ph.extraClaim  || []);
     this.renderExtra('ph','deduct', ph.extraDeduct || []);
 
-    const st = (await Store.getUser(`staffSalary:${App.month}`, null)) || {};
+    const st = (await this.loadWithCarry('staffSalary')) || {};
     U.setVal('st_otherNote','');
     Object.entries(st).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('st_'+k, v); });
     this.renderExtra('st','fixed',  st.extraFixed  || []);
@@ -3006,7 +3036,10 @@ const PwReset = {
 
 /* ---------- [14] APP (role / tabs / เดือน / boot) --------------- */
 const App = {
-  month: new Date().toISOString().slice(0,7),   // 'YYYY-MM'
+  // เดือนเริ่มต้นของหน้าเว็บ: เปลี่ยนเป็นเดือนใหม่ตั้งแต่วันที่ 5 ของเดือน (วันที่ 1–4 ยังแสดงเดือนก่อนหน้า
+  // เพราะต้องทำเงินเดือนของเดือนที่แล้วให้เสร็จภายในวันที่ 3) — ใช้เวลาท้องถิ่นของเครื่อง (ไทย)
+  month: (()=>{ const d=new Date(); if (d.getDate()<5) d.setDate(0);
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })(),   // 'YYYY-MM'
 
   async boot(){
     const { data:{ session } } = await sb.auth.getSession();
