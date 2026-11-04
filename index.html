@@ -375,7 +375,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
         <tbody>
           <tr class="grp"><td colspan="4">รายการหัก</td><td><button type="button" class="tbl-add-btn" id="ph_deduct_addBtn" title="เพิ่มรายการ">+</button></td></tr>
           <tr><td>ประกันสังคม</td><td><input id="ph_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_sso">0.00</td><td></td></tr>
-          <tr><td>หักอื่นๆ</td><td><input id="ph_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_deductOther">0.00</td><td></td></tr>
+          <tr><td><input id="ph_deductOtherLabel" type="text" class="note-input" maxlength="100" value="หักอื่นๆ" placeholder="หักอื่นๆ" title="แก้ไขชื่อรายการได้"></td><td><input id="ph_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_ph_deductOther">0.00</td><td></td></tr>
         </tbody>
         <tbody id="ph_deduct_extra"></tbody>
 
@@ -416,7 +416,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
         <tbody>
           <tr class="grp"><td colspan="4">รายการหัก</td><td><button type="button" class="tbl-add-btn" id="st_deduct_addBtn" title="เพิ่มรายการ">+</button></td></tr>
           <tr><td>ประกันสังคม</td><td><input id="st_sso" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_sso">0.00</td><td></td></tr>
-          <tr><td>หักอื่นๆ</td><td><input id="st_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_deductOther">0.00</td><td></td></tr>
+          <tr><td><input id="st_deductOtherLabel" type="text" class="note-input" maxlength="100" value="หักอื่นๆ" placeholder="หักอื่นๆ" title="แก้ไขชื่อรายการได้"></td><td><input id="st_deductOther" type="number"></td><td class="mul-fixed">-1</td><td class="amt" id="o_st_deductOther">0.00</td><td></td></tr>
         </tbody>
         <tbody id="st_deduct_extra"></tbody>
 
@@ -1662,7 +1662,7 @@ const Salary = {
       otHours:U.val('ph_otHours'), otRate:U.val('ph_otRate')||170,
       comDaily:U.val('ph_comDaily'), comMonthly:U.val('ph_comMonthly'),
       cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'), otherNote:(U.$('ph_otherNote')?.value||'').trim(),
-      sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther'),
+      sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther'), deductOtherLabel:(U.$('ph_deductOtherLabel')?.value||'').trim(),
       extraFixed: this.readExtra('ph','fixed'),
       extraClaim: this.readExtra('ph','claim'),
       extraDeduct: this.readExtra('ph','deduct')
@@ -1688,7 +1688,7 @@ const Salary = {
       salary:U.val('st_salary'), license:0, exp:0, posOther:U.val('st_posOther'),
       otHours:U.val('st_otHours'), otRate:U.val('st_otRate')||62.5,
       comDaily:U.val('st_comDaily'), comMonthly:0, cheer:0, ci:0, other:U.val('st_other'), otherNote:(U.$('st_otherNote')?.value||'').trim(),
-      sso:U.val('st_sso'), deductOther:U.val('st_deductOther'),
+      sso:U.val('st_sso'), deductOther:U.val('st_deductOther'), deductOtherLabel:(U.$('st_deductOtherLabel')?.value||'').trim(),
       extraFixed: this.readExtra('st','fixed'),
       extraClaim: this.readExtra('st','claim'),
       extraDeduct: this.readExtra('st','deduct')
@@ -1786,14 +1786,14 @@ t=setTimeout(()=>{ if(m!==App.month||App.loading) return; Store.setUser(`pharmSa
   async load(){
     const skip = ['extraFixed','extraClaim','extraDeduct'];
     const ph = (await this.loadWithCarry('pharmSalary')) || {};
-    U.setVal('ph_otherNote','');
+    U.setVal('ph_otherNote',''); U.setVal('ph_deductOtherLabel','หักอื่นๆ');
     Object.entries(ph).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('ph_'+k, v); });
     this.renderExtra('ph','fixed',  ph.extraFixed  || []);
     this.renderExtra('ph','claim',  ph.extraClaim  || []);
     this.renderExtra('ph','deduct', ph.extraDeduct || []);
 
     const st = (await this.loadWithCarry('staffSalary')) || {};
-    U.setVal('st_otherNote','');
+    U.setVal('st_otherNote',''); U.setVal('st_deductOtherLabel','หักอื่นๆ');
     Object.entries(st).forEach(([k,v])=>{ if (!skip.includes(k)) U.setVal('st_'+k, v); });
     this.renderExtra('st','fixed',  st.extraFixed  || []);
     this.renderExtra('st','claim',  st.extraClaim  || []);
@@ -2964,7 +2964,8 @@ const AdminView = {
           rows.push({kind:'item', cells:[label, h||'', otRate, amt]});
         } else {
           const v = U.num(p[k]), amt = sign*v; gs += amt;
-          rows.push({kind:'item', cells:[label, p[k]===''||p[k]==null ? '' : v, sign<0 ? -1 : '', amt]});
+          const lbl = (k==='deductOther' && p.deductOtherLabel) ? p.deductOtherLabel : label;
+          rows.push({kind:'item', cells:[lbl, p[k]===''||p[k]==null ? '' : v, sign<0 ? -1 : '', amt]});
         }
         if (k==='other' && p.otherNote) rows.push({kind:'note', cells:['หมายเหตุ (อื่นๆ)', p.otherNote]});
       });
