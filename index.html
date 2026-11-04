@@ -571,13 +571,18 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <button class="btn small" id="ad_saveCodeBtn">บันทึก</button>
     </div>
 
+    <div class="row" style="margin-bottom:8px">
+      <strong>กรองตามสาขา</strong>
+      <select id="ad_branchFilter"><option value="">ทุกสาขา</option></select>
+      <span class="hint" id="ad_branchCount"></span>
+    </div>
     <div class="tbl-scroll">
       <table>
-        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ตำแหน่งงาน</th><th>สิทธิ์พิเศษ</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th><th class="salary-access-only hide">ดูเงินเดือนรวม</th></tr></thead>
+        <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>ตำแหน่งงาน</th><th>สิทธิ์พิเศษ</th><th>สาขา</th><th>เพศ</th><th>วันที่เริ่มงาน</th><th>รีเซ็ตรหัสผ่าน</th><th class="salary-access-only hide">ดูเงินเดือนรวม</th></tr></thead>
         <tbody id="userListBody"></tbody>
       </table>
     </div>
-    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วยและเภสัชกร (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก / เพศมีผลต่อการแสดงสิทธิ์ลาคลอด (หญิง) และลาอุปสมบท (ชาย) ของพนักงาน/ผู้ช่วยและเภสัชกร — เลือกแล้วบันทึกทันที / ประเภทเภสัชกร (สาขา/โมบาย) แต่ละคนตั้งเองที่แท็บ "ตั้งค่าคอมมิชชั่น"</p>
+    <p class="hint">วันที่เริ่มงานมีผลต่อการคำนวณสิทธิ์วันลาที่ผูกอายุงานของพนักงาน/ผู้ช่วยและเภสัชกร (แท็บ "วันลา/วันหยุด") — กรอกแล้วกด Enter หรือคลิกออกจากช่องเพื่อบันทึก / สาขาประจำ: เลือกแล้วบันทึกทันที ใช้กรองรายชื่อและแสดงในสรุปเงินเดือน (ตัวกรองสาขามีผลกับสรุปเงินเดือนและไฟล์ Excel ด้วย) / เพศมีผลต่อการแสดงสิทธิ์ลาคลอด (หญิง) และลาอุปสมบท (ชาย) ของพนักงาน/ผู้ช่วยและเภสัชกร — เลือกแล้วบันทึกทันที / ประเภทเภสัชกร (สาขา/โมบาย) แต่ละคนตั้งเองที่แท็บ "ตั้งค่าคอมมิชชั่น"</p>
 
     <div class="tier-section" style="margin-top:14px">
       <div class="tier-section-head">
@@ -600,7 +605,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
       <button class="btn small secondary" id="ad_exportSummaryBtn">ส่งออก Excel</button>
     </div>
     <table>
-      <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th><th></th></tr></thead>
+      <thead><tr><th>ชื่อ</th><th>สาขา</th><th>ประเภท</th><th>เงินเดือนสุทธิ</th><th></th></tr></thead>
       <tbody id="summaryBody"></tbody>
     </table>
     </div>
@@ -2402,10 +2407,29 @@ const Admin = {
   ROLE_LABEL: { pharmacist:'เภสัชกรสาขา', staff:'พนักงาน/ผู้ช่วย', admin:'ผู้ดูแลระบบ (แบบเก่า)' },
   ACCESS_LABEL: { '':'-', hr:'HR (ดูแลวันลา)', admin:'ผู้ดูแลระบบ' },
   GENDER_LABEL: { male:'ชาย', female:'หญิง' },
+  BRANCHES: ['1','2','3','4','5','6','7','8','9','mobile'],
+  branchLabel(b){ return !b ? '-' : (b==='mobile' ? 'โมบาย' : 'สาขา '+b); },
+  _users: [],
+  _branchMap(){ const m={}; (this._users||[]).forEach(u=>{ m[u.id]=u.branch||''; }); return m; },
+  applyBranchFilter(){
+    const f = U.$('ad_branchFilter')?.value || '';
+    let n=0;
+    U.$('userListBody').querySelectorAll('tr[data-branch]').forEach(tr=>{
+      const show = !f || (f==='none' ? !tr.dataset.branch : tr.dataset.branch===f);
+      tr.classList.toggle('hide', !show); if (show) n++;
+    });
+    const c=U.$('ad_branchCount'); if (c) c.textContent = f ? `(${n} คน)` : '';
+    this.renderSummary();
+  },
 
   async loadUsers(){
     try{
       const list = await callFn(CONFIG.ADMIN_FN, { action:'list-users' });
+      this._users = list;
+      const fSel = U.$('ad_branchFilter');
+      if (fSel && fSel.options.length<=1){
+        fSel.innerHTML = '<option value="">ทุกสาขา</option>' + this.BRANCHES.map(b=>`<option value="${b}">${this.branchLabel(b)}</option>`).join('') + '<option value="none">ยังไม่ระบุสาขา</option>';
+      }
       U.$('userListBody').innerHTML = list.map(u=>{
         const isSelf = u.id === CURRENT_USER.id;
         const roleCell = isSelf
@@ -2426,9 +2450,14 @@ const Admin = {
               <option value="male" ${u.gender==='male'?'selected':''}>ชาย</option>
               <option value="female" ${u.gender==='female'?'selected':''}>หญิง</option>
             </select>`;
-        return `<tr>
+        const branchCell = `<select class="branch-select" data-branch-user="${u.id}" data-prev="${u.branch||''}">
+              <option value="" ${!u.branch?'selected':''}>-</option>
+              ${this.BRANCHES.map(b=>`<option value="${b}" ${u.branch===b?'selected':''}>${this.branchLabel(b)}</option>`).join('')}
+            </select>`;
+        return `<tr data-branch="${u.branch||''}">
           <td>${u.full_name||'-'}</td><td>${u.email}</td><td>${roleCell}</td>
           <td>${accessCell}</td>
+          <td>${branchCell}</td>
           <td>${genderCell}</td>
           <td><input type="date" class="start-date-input" data-start-user="${u.id}" data-prev="${u.start_date||''}" value="${u.start_date||''}"></td>
           <td><button class="btn-reset" data-reset-user="${u.id}">รีเซ็ตรหัสผ่าน</button></td>
@@ -2439,7 +2468,27 @@ const Admin = {
           }</td>
         </tr>`;
       }).join('');
+      this.applyBranchFilter();
     }catch(err){ U.toast('โหลดรายชื่อผู้ใช้ไม่สำเร็จ: '+err.message,'error'); }
+  },
+
+  _branchOf(r){ return r.branch ?? this._branchMap()[r.user_id] ?? ''; },
+  // แถวสรุปที่ผ่านตัวกรองสาขา เรียงตามสาขา (1..9, โมบาย, ไม่ระบุ) — เก็บ index เดิมไว้ใช้กับปุ่มดูรายละเอียด
+  _summaryVisible(){
+    const f = U.$('ad_branchFilter')?.value || '';
+    const order = b => { const i=this.BRANCHES.indexOf(b); return i<0 ? 99 : i; };
+    return (this._summary||[]).map((r,i)=>({r,i,b:this._branchOf(r)}))
+      .filter(x=> !f || (f==='none' ? !x.b : x.b===f))
+      .sort((a,b)=> order(a.b)-order(b.b) || a.i-b.i);
+  },
+  renderSummary(){
+    const body=U.$('summaryBody'); if (!body || !this._summary) return;
+    const vis=this._summaryVisible();
+    const total=vis.reduce((s,x)=>s+(+x.r.net||0),0);
+    body.innerHTML = vis.map(({r,i,b})=>`
+          <tr><td>${Export._esc(r.full_name||'-')}</td><td>${this.branchLabel(b)}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td>
+          <td>${r.user_id?`<button class="btn small secondary" data-view-user="${i}">ดูรายละเอียด</button>`:''}</td></tr>`).join('')
+      + `<tr><td colspan="3"><strong>รวม ${vis.length} คน</strong></td><td class="amt"><strong>${U.money(total)}</strong></td><td></td></tr>`;
   },
 
   bind(){
@@ -2478,6 +2527,23 @@ const Admin = {
         dateInp.value = prev;
         U.toast('บันทึกไม่สำเร็จ: '+err.message,'error');
       }
+    });
+
+    U.$('ad_branchFilter').onchange = () => this.applyBranchFilter();
+
+    // ตั้ง "สาขาประจำ" ของพนักงาน — เขียนผ่าน service role เท่านั้น (action 'set-branch')
+    U.$('userListBody').addEventListener('change', async (e)=>{
+      const sel=e.target.closest('.branch-select'); if(!sel) return;
+      const userId=sel.dataset.branchUser, prev=sel.dataset.prev, branch=sel.value;
+      if (branch===prev) return;
+      try{
+        await callFn(CONFIG.ADMIN_FN, { action:'set-branch', payload:{ user_id:userId, branch } });
+        sel.dataset.prev = branch;
+        sel.closest('tr').dataset.branch = branch;
+        const u=(this._users||[]).find(x=>x.id===userId); if (u) u.branch=branch;
+        U.toast('บันทึกสาขาแล้ว','ok');
+        this.applyBranchFilter();
+      }catch(err){ sel.value=prev; U.toast('บันทึกไม่สำเร็จ: '+err.message,'error'); }
     });
 
     // ตั้งค่า "เพศ" ของพนักงานคนใดก็ได้ — เขียนผ่าน service role เท่านั้น (มีผลต่อสิทธิ์ลาคลอด/ลาอุปสมบท)
@@ -2549,13 +2615,12 @@ const Admin = {
       try{
         const rows = await callFn(CONFIG.ADMIN_FN, { action:'salary-summary', payload:{month} });
         this._summary = rows;
-        U.$('summaryBody').innerHTML = rows.map((r,i)=>`
-          <tr><td>${Export._esc(r.full_name||'-')}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td>
-          <td>${r.user_id?`<button class="btn small secondary" data-view-user="${i}">ดูรายละเอียด</button>`:''}</td></tr>`).join('');
+        this.renderSummary();
       }catch(err){ U.toast(err.message,'error'); }
     };
 
-    U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx((this._summary||[]).map(({user_id, ...r})=>r)));
+    U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx(
+      this._summaryVisible().map(({r,b})=>{ const { user_id, ...rest } = r; return { สาขา:this.branchLabel(b), ...rest }; })));
     U.$('summaryBody').addEventListener('click', e=>{
       const b = e.target.closest('[data-view-user]'); if (!b) return;
       const r = (this._summary||[])[+b.dataset.viewUser];
