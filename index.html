@@ -2425,6 +2425,9 @@ const Admin = {
   async loadUsers(){
     try{
       const list = await callFn(CONFIG.ADMIN_FN, { action:'list-users' });
+      // เรียงตามสาขา: สาขา 1–9 → โมบาย → ยังไม่ระบุ (คนในสาขาเดียวกันคงลำดับเดิม)
+      const bOrder = b => { const i=this.BRANCHES.indexOf(b||''); return i<0 ? 99 : i; };
+      list.sort((a,b)=> bOrder(a.branch)-bOrder(b.branch));
       this._users = list;
       const fSel = U.$('ad_branchFilter');
       if (fSel && fSel.options.length<=1){
