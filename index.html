@@ -280,13 +280,15 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
   <!-- ---------- TAB: DAILY ---------- -->
   <section id="tab-daily" class="tab card hide">
     <h3>ยอดขายรายวัน / อ่านตารางลงเวลาจากรูปภาพ</h3>
-    <div class="row">
+       <div class="row">
+      <label for="imageInput" style="font-weight:600;min-width:150px">แนบรูปตาราง OT</label>
       <input type="file" id="imageInput" accept="image/*">
       <button class="btn small" id="processImageBtn">อ่านตารางจากรูปภาพ</button>
       <span class="hint">รองรับตารางที่มีคอลัมน์ OT ตรงๆ หรือมีแค่เวลาเข้า-ออก</span>
     </div>
 
     <div class="row sales-only">
+      <label for="excelInput" style="font-weight:600;min-width:150px">แนบไฟล์ค่าคอมรายวัน</label>
       <input type="file" id="excelInput" accept=".xlsx,.xls">
       <button class="btn small" id="excelReadBtn">อ่านไฟล์ Excel</button>
       <span class="hint">คอลัมน์ A=วันที่, B=ยอดขาย, C=เคส (เฉพาะพนักงาน: D-F=ค่าคอมคนที่ 1-3) — เทียบแถวตามเลขวันที่</span>
