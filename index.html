@@ -321,7 +321,7 @@ table.leave-grid .leave-pair input[type="number"]{width:38px; padding:4px 2px}
             <th>วันที่</th><th>ยอดขาย</th><th>เคส</th>
             <th>เข้างาน</th><th>ออกงาน</th><th>OT (ชม. : นาที)</th>
             <th>คอมสาขา</th>
-<th>คอมรายวัน</th><th>ไม่เข้างาน</th>
+<th>คอมรายวัน</th><th>รูปแบบกะ</th>
           </tr>
         </thead>
         <tbody id="dailyBody"></tbody>
@@ -657,6 +657,25 @@ const CONFIG = {
     pharmacist: { standardHours: 8, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 },
     staff:      { standardHours: 9, breakHours: 1, otStep: 0.5, otMaxPerDay: 8 }
   },
+
+  // รูปแบบกะของเภสัชกร (dropdown ช่อง "รูปแบบกะ" ในตารางรายวัน)
+  //   ot  = ตัวคูณอัตรา OT (170 บาท/ชม.) ใช้กับ OT ทุกชม.ของวันนั้น รวม OT บังคับ 2 ชม.
+  //   com = ตัวคูณค่าคอมรายวัน (null = คิดแบบพิเศษ ดู Daily.recalc)
+  // ตัวคูณจากเวลาทำงาน (ระบบใส่ให้อัตโนมัติ):
+  //   normal: ทำงานไม่ครบ 10 ชม. (ไม่รวมพัก) → คอม ×0.7 และนับเป็น "ออกเร็ว" (โควตา 2 ครั้ง/เดือน)
+  //   pair  : ทำงานไม่ครบ 8 ชม.                → คอม ×0.75×0.7
+  //   ทุกกะ : ทำงานไม่ถึง 8 ชม. / ออกเร็วเกินโควตา → แจ้งเตือนแอดมินให้ตัดสินใจ (ระบบไม่หักเอง)
+  SHIFTS: {
+    normal:  { label:'ปกติ',                          ot:1,   com:1    },
+    off:     { label:'ไม่เข้างาน',                     ot:1,   com:0    },
+    solo:    { label:'คนเดียว / อยู่กับเจม-หยก (×1.5)', ot:1.5, com:1.5  },
+    split_am:{ label:'กะเช้า มีคนต่อเย็น (×0.7)',      ot:1,   com:0.7  },
+    split_pm:{ label:'กะเย็น ต่อจากเช้า (×0.3)',       ot:1,   com:0.3  },
+    pair:    { label:'เภสัช 2 คนพร้อมกัน (×0.75)',      ot:1,   com:0.75 },
+    mobile2: { label:'โมบาย 2 สาขา (0.7 / 0.3)',       ot:1,   com:null }
+  },
+  STAFF_SHIFTS: ['normal','off'],
+  EARLY_LEAVE_QUOTA: 2,
 
   DEFAULT_TIER_AMTS: {
     daily:  [25,50,75,100,125,150,200,250,300,350,400,450,500,550,600,650,700,750,800,850,900,950,1000],
@@ -1189,7 +1208,52 @@ const OT = {
  * ----------------------------------------------------------*/
 const Daily = {
   rows: [],
-  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false,noCom:false,branch:''}; },
+  blank(day){ return {day,sales:0,cases:0,in:'',out:'',ot:0,otManual:false,com:0,comManual:false,noCom:false,branch:'',shift:'normal',branch2:'',sales2:0}; },
+  /** รูปแบบกะของแถว (รองรับข้อมูลเก่าที่มีแค่ noCom) */
+  shiftOf(r){ return (r && r.shift && CONFIG.SHIFTS[r.shift]) ? r.shift : (r && r.noCom ? 'off' : 'normal'); },
+  isPharmRole(){ return CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin'; },
+  /** ชม.ทำงานจริง (ไม่รวมพัก) จากเวลาเข้า-ออก — ใช้รวมเวลาทุกสาขาในวันนั้นแล้ว (เข้าแรกสุด-ออกท้ายสุด) */
+  workedHours(r){
+    const a=U.toHours(r.in), b=U.toHours(r.out);
+    if (a==null||b==null) return null;
+    let span=b-a; if (span<0) span+=24;
+    return span - OT.ruleFor(CURRENT_ROLE).breakHours;
+  },
+  /** รวม OT แยกถัง ปกติ / ×1.5 แล้วปัดเศษแต่ละถัง → ot = ชม.เทียบเท่า (คูณอัตรา 170 ได้ตรง) */
+  otTotals(rows){
+    const bucket = (arr)=>{ const mins=Math.round(arr.reduce((a,r)=>a+U.num(r.ot),0)*60);
+      return Math.floor(mins/60) + this.roundOtFraction(mins%60); };
+    const mul = (r)=> (CONFIG.SHIFTS[this.shiftOf(r)]||{}).ot || 1;
+    const norm = bucket(rows.filter(r=>mul(r)===1));
+    const x15  = bucket(rows.filter(r=>mul(r)===1.5));
+    return { otNormal:norm, otX15:x15, ot: norm + x15*1.5 };
+  },
+  /** รายการแจ้งเตือนสำหรับแอดมิน + ทำเครื่องหมายออกเร็วเกินโควตา */
+  computeFlags(rows){
+    let early=0; const out=[];
+    rows.forEach(r=>{
+      const f=[...(r.flags||[])];
+      if (r.early){ early++; if (early>CONFIG.EARLY_LEAVE_QUOTA) f.push(`ออกเร็วครั้งที่ ${early} (เกินโควตา ${CONFIG.EARLY_LEAVE_QUOTA} ครั้ง)`); }
+      r.allFlags=f;
+      f.forEach(m=>out.push(`วันที่ ${r.day}: ${m}`));
+    });
+    return out;
+  },
+  shiftCell(r){
+    const keys = this.isPharmRole() ? Object.keys(CONFIG.SHIFTS) : CONFIG.STAFF_SHIFTS;
+    const sh=this.shiftOf(r);
+    const extra = sh==='mobile2' ? `
+      <div class="mobile2-box" style="margin-top:4px; display:flex; gap:4px; align-items:center">
+        <select class="role-select branch2-select" data-f="branch2" title="สาขาที่ 2 (ช่วงเย็น ×0.3)">
+          <option value="">สาขา 2</option>
+          ${CONFIG.BRANCHES.map(b=>`<option value="${b}" ${String(r.branch2)===String(b)?'selected':''}>สาขา ${b}</option>`).join('')}
+        </select>
+        <input class="in-num" data-f="sales2" type="number" step="0.01" placeholder="ยอดขายสาขา 2" value="${r.sales2||''}" style="width:90px">
+      </div>` : '';
+    return `<select class="role-select shift-select" data-f="shift">
+        ${keys.map(k=>`<option value="${k}" ${k===sh?'selected':''}>${CONFIG.SHIFTS[k].label}</option>`).join('')}
+      </select>${extra}`;
+  },
   init(days=31){ this.rows=Array.from({length:days},(_,i)=>this.blank(i+1)); },
 
   /** อัปเดตข้อความอธิบายเกณฑ์ OT ใต้ตาราง ให้ตรงกับ role ของผู้ใช้ที่ล็อกอินอยู่ */
@@ -1198,6 +1262,7 @@ const Daily = {
     const totalSpan = rule.standardHours + rule.breakHours;
     U.setText('dailyOtHint',
       `** ทำงานวันละ ${rule.standardHours}+${rule.breakHours} ชม. (รวมพัก ${totalSpan} ชม.) ส่วนที่เกินคิดเป็น OT (ฐานงาน ${rule.standardHours} ชม. + พัก ${rule.breakHours} ชม.) `+
+      (this.isPharmRole() ? `เภสัชกร: ทำงานบังคับ 8 + OT บังคับ 2 ชม. (+พัก 1) — กะ "คนเดียว/อยู่กับเจม-หยก" OT×1.5 และคอม×1.5; ทำงานไม่ครบ 10 ชม. คอม×0.7 (ออกเร็วได้ ${CONFIG.EARLY_LEAVE_QUOTA} ครั้ง/เดือน); ไม่ถึง 8 ชม. หรือเกินโควตา ⚠️ แจ้งแอดมิน. ` : '')+
       `กรอก OT แต่ละวันเป็นชม./นาทีตรงตามจริง — ยอดรวม OT ท้ายตารางจะปัดเศษนาทีที่เหลือ: 0-10 นาที→.00, 11-25→.25, 26-40→.50, 41-55→.75, 56-60→ปัดขึ้น 1 ชม.`);
   },
 
@@ -1226,7 +1291,7 @@ const Daily = {
           </select>
         </td>
         <td><input class="in-num ${r.comManual?'is-manual':''}" data-f="com" type="number" step="1" value="${r.com||''}" ${r.noCom?'disabled':''}></td>
-<td class="nocom-cell"><label class="nocom-lbl" title="ไม่เข้างาน (วันหยุด) — ไม่ได้ค่าคอมวันนี้"><input type="checkbox" data-f="noCom" ${r.noCom?'checked':''}></label> <button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
+<td class="nocom-cell">${this.shiftCell(r)} <span class="day-flag" title="${(r.allFlags||[]).join(' / ')}" ${(r.allFlags||[]).length?'':'hidden'}>⚠️</span> <button class="btn-reset" data-reset="${i}" title="คืนค่าอัตโนมัติ" ${(r.comManual||r.otManual)?'':'hidden'}>↺</button></td>
       </tr>`;
     }).join('');
     this.updateOtHint();
@@ -1273,14 +1338,26 @@ U.toast('บันทึกไม่สำเร็จ: '+(err&&err.message||err
 
 recalc(i){
 const r=this.rows[i];
+    const sh = this.shiftOf(r); r.shift = sh; r.noCom = (sh==='off');
     if (!r.otManual)  r.ot  = OT.calc(r.in,r.out);
-    if (r.noCom){
-r.com = 0; // วันหยุด/ไม่ได้รับค่าคอมวันนั้น
-} else if (!r.comManual){
-      // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
-      r.com = ((CURRENT_ROLE==='pharmacist'||CURRENT_ROLE==='admin') && Tiers.type==='mobile')
-        ? BranchTiers.daily(r.sales, r.branch)
-        : Tiers.daily(r.sales);
+    const isPh = this.isPharmRole();
+    // เภสัชโมบาย: ค่าคอมรายวันยึดตามตารางของสาขาที่เลือกในแถวนั้น ไม่ใช่ตารางส่วนตัว
+    const tierDaily = (sales, branch)=> (isPh && Tiers.type==='mobile') ? BranchTiers.daily(sales, branch) : Tiers.daily(sales);
+    r.flags=[]; r.early=false;
+    if (sh==='off'){ r.com = 0; return; } // วันหยุด/ไม่ได้รับค่าคอมวันนั้น
+
+    let mul = CONFIG.SHIFTS[sh].com ?? 1;
+    const w = isPh ? this.workedHours(r) : null;
+    if (w!=null){
+      if (w < 8) r.flags.push(`ทำงานไม่ถึง 8 ชม. (${w.toFixed(2)} ชม.) — รอแอดมินตัดสินใจ`);
+      if (sh==='normal' && w < 10){ mul *= 0.7; r.early = true; }   // ไม่ได้ทำ OT บังคับครบ / กลับเร็ว
+      if (sh==='pair'   && w < 8)   mul *= 0.7;                     // 0.75 × 0.7
+    }
+    if (!r.comManual){
+      r.com = (sh==='mobile2')
+        ? 0.7*tierDaily(r.sales, r.branch) + 0.3*tierDaily(r.sales2, r.branch2)
+        : mul * tierDaily(r.sales, r.branch);
+      r.com = Math.round(r.com*100)/100;
     }
   },
   recalcAll(){ this.rows.forEach((_,i)=>this.recalc(i)); },
@@ -1290,14 +1367,12 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
     const workedDays=this.rows.filter(r=>U.num(r.sales)>0).length;
 
     // ยอดรวม OT: ปัดเศษนาทีที่เหลือหลังรวมทุกวันแล้วตามตารางที่กำหนด (ไม่ใช่ปัดทีละวัน)
-    const rawOtHours = sum('ot');
-    const totalOtMinutes = Math.round(rawOtHours * 60);
-    const otWholeHours = Math.floor(totalOtMinutes / 60);
-    const otRemainMin = totalOtMinutes % 60;
-    const otRounded = otWholeHours + this.roundOtFraction(otRemainMin);
+    // OT แยก 2 ถัง: ปกติ และ ×1.5 (กะคนเดียว) — ปัดเศษแต่ละถัง แล้วคิดเป็น "ชม.เทียบเท่า" ส่งไปคูณ 170
+    const otT = this.otTotals(this.rows);
+    const flags = this.computeFlags(this.rows);
 
     const totals={
-      sales:sum('sales'), cases:sum('cases'), ot:otRounded, com:sum('com'),
+      sales:sum('sales')+sum('sales2'), cases:sum('cases'), ot:otT.ot, otNormal:otT.otNormal, otX15:otT.otX15, com:sum('com'), flags,
       avg: workedDays ? sum('sales')/workedDays : 0,
       avgCases: workedDays ? this.rows.filter(r=>U.num(r.sales)>0).reduce((a,r)=>a+U.num(r.cases),0)/workedDays : 0
     };
@@ -1312,7 +1387,11 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
     }
     U.setText('sumSales',U.money(totals.sales));
     U.setText('sumCases',totals.cases);
-    U.setText('sumOt',totals.ot.toFixed(2));
+    U.setText('sumOt', totals.otX15>0
+      ? `${totals.ot.toFixed(2)} (ปกติ ${totals.otNormal.toFixed(2)} + คนเดียว ${totals.otX15.toFixed(2)}×1.5)`
+      : totals.ot.toFixed(2));
+    this.rows.forEach((r,i)=>{ const fl=U.$$(`#dailyBody tr[data-i="${i}"] .day-flag`)[0];
+      if (fl){ fl.hidden=!(r.allFlags||[]).length; fl.title=(r.allFlags||[]).join(' / '); } });
     U.setText('sumCom',U.money(totals.com));
     U.setText('avgSales',U.money(totals.avg));
     U.setText('avgCases',totals.avgCases.toFixed(2));
@@ -1328,9 +1407,9 @@ r.com = 0; // วันหยุด/ไม่ได้รับค่าคอ�
       const inp=e.target.closest('input'); if(!inp) return;
       const tr=inp.closest('tr');
       const i=+tr.dataset.i, f=inp.dataset.f, r=this.rows[i];
-      if (f==='noCom'){
-r.noCom = inp.checked;
-} else if (f==='in'||f==='out'){
+      if (f==='sales2'){
+        r.sales2 = U.num(inp.value);
+      } else if (f==='in'||f==='out'){
 r[f]=inp.value;
 } else if (f==='otH' || f==='otM'){
         const hInp=tr.querySelector('[data-f="otH"]'), mInp=tr.querySelector('[data-f="otM"]');
@@ -1347,10 +1426,11 @@ r[f]=inp.value;
     });
     // เลือกสาขาที่ปฏิบัติงาน (เภสัชโมบาย) — ใช้ event 'change' แยกเพราะเป็น <select>
     body.addEventListener('change',(e)=>{
-      const sel=e.target.closest('.branch-select'); if(!sel) return;
+      const sel=e.target.closest('.branch-select, .shift-select, .branch2-select'); if(!sel) return;
       const tr=sel.closest('tr'); const i=+tr.dataset.i;
-      this.rows[i].branch = sel.value;
-      this.recalc(i); this.refreshRow(i); this.summary();
+      this.rows[i][sel.dataset.f || 'branch'] = sel.value;
+      this.recalc(i);
+      if (sel.classList.contains('shift-select')) this.render(); else { this.refreshRow(i); this.summary(); }
       this.persist().catch(()=>{});
     });
     body.addEventListener('click',(e)=>{
@@ -1384,7 +1464,7 @@ U.$('dailySaveBtn').onclick = () => this.saveNow();
     otM.classList.toggle('is-manual', r.otManual);
     com.classList.toggle('is-manual', r.comManual);
 com.disabled = !!r.noCom;
-const nc=tr.querySelector('[data-f="noCom"]'); if (nc) nc.checked = !!r.noCom;
+const sc=tr.querySelector('[data-f="shift"]'); if (sc) sc.value = this.shiftOf(r);
     tr.querySelector('[data-reset]').hidden = !(r.otManual||r.comManual);
   },
 
@@ -1663,6 +1743,7 @@ const Salary = {
       salary:U.val('ph_salary'), license:U.val('ph_license'), exp:U.val('ph_exp'), posOther:U.val('ph_posOther'),
       otHours:U.val('ph_otHours'), otRate:U.val('ph_otRate')||170,
       comDaily:U.val('ph_comDaily'), comMonthly:U.val('ph_comMonthly'),
+      flags:(Daily.totals&&Daily.totals.flags)||[],   // แจ้งเตือนแอดมิน (ไม่ถึง 8 ชม. / ออกเร็วเกินโควตา)
       cheer:U.val('ph_cheer'), ci:U.val('ph_ci'), other:U.val('ph_other'), otherNote:(U.$('ph_otherNote')?.value||'').trim(),
       sso:U.val('ph_sso'), deductOther:U.val('ph_deductOther'), deductOtherLabel:(U.$('ph_deductOtherLabel')?.value||'').trim(),
       extraFixed: this.readExtra('ph','fixed'),
@@ -1759,7 +1840,7 @@ t=setTimeout(()=>{ if(m!==App.month||App.loading) return; Store.setUser(`pharmSa
    * ถ้าเดือนที่เปิดยังไม่มีข้อมูล (หรือมีแต่ค่าว่าง) ให้คัดลอกค่าทั้งหมดจากเดือนล่าสุดที่มีข้อมูล (ย้อนหลังสูงสุด 12 เดือน)
    * ยกเว้น OT (ชั่วโมง) และค่าคอม — สองค่านี้ยึดตามตารางคำนวณรายวันของเดือนนั้น (syncFromDaily)
    * ---------------------------------------------------- */
-  CARRY_SKIP: ['otHours','comDaily','comMonthly'],
+  CARRY_SKIP: ['otHours','comDaily','comMonthly','flags'],
   isBlank(d){
     if (!d) return true;
     return !Object.entries(d).some(([k,v])=>{
@@ -2491,7 +2572,7 @@ const Admin = {
     const vis=this._summaryVisible();
     const total=vis.reduce((s,x)=>s+(+x.r.net||0),0);
     body.innerHTML = vis.map(({r,i,b})=>`
-          <tr><td>${Export._esc(r.full_name||'-')}</td><td>${this.branchLabel(b)}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td>
+          <tr><td>${Export._esc(r.full_name||'-')}${(r.flags||[]).length?` <span title="${Export._esc(r.flags.join('\n'))}" style="color:#d97706; cursor:help">⚠️ ${r.flags.length}</span>`:''}</td><td>${this.branchLabel(b)}</td><td>${r.role}</td><td class="amt">${U.money(r.net)}</td>
           <td>${r.user_id?`<button class="btn small secondary" data-view-user="${i}">ดูรายละเอียด</button>`:''}</td></tr>`).join('')
       + `<tr><td colspan="3"><strong>รวม ${vis.length} คน</strong></td><td class="amt"><strong>${U.money(total)}</strong></td><td></td></tr>`;
   },
@@ -2625,7 +2706,7 @@ const Admin = {
     };
 
     U.$('ad_exportSummaryBtn').onclick = (e) => Export.run(e.currentTarget, ()=>Export.summaryXlsx(
-      this._summaryVisible().map(({r,b})=>{ const { user_id, ...rest } = r; return { สาขา:this.branchLabel(b), ...rest }; })));
+      this._summaryVisible().map(({r,b})=>{ const { user_id, flags, ...rest } = r; return { สาขา:this.branchLabel(b), ...rest, แจ้งเตือน:(flags||[]).join(' / ') }; })));
     U.$('summaryBody').addEventListener('click', e=>{
       const b = e.target.closest('[data-view-user]'); if (!b) return;
       const r = (this._summary||[])[+b.dataset.viewUser];
@@ -2716,13 +2797,13 @@ const Export = {
       fmtOt(r.ot),
       r.branch ? `สาขา ${r.branch}` : '',
       r.noCom ? '' : (r.com===''||r.com==null ? '' : U.num(r.com)),
-      r.noCom ? '✓' : ''
+      (CONFIG.SHIFTS[Daily.shiftOf(r)]||{}).label + (Daily.shiftOf(r)==='mobile2' && r.branch2 ? ` (สาขา ${r.branch2}: ${U.num(r.sales2)})` : '')
     ]);
     const t = (id)=>U.$(id)?.textContent.trim() || '';
     const foot = totals
       ? ['รวม', totals.sales, totals.cases, 'เฉลี่ย/วัน', totals.avg, totals.ot.toFixed(2), `เคสเฉลี่ย ${U.num(totals.avgCases).toFixed(2)}`, totals.com, '']
       : ['รวม', U.num(t('sumSales')), U.num(t('sumCases')), 'เฉลี่ย/วัน', U.num(t('avgSales')), t('sumOt'), `เคสเฉลี่ย ${t('avgCases')}`, U.num(t('sumCom')), ''];
-    const head = ['วันที่','ยอดขาย','เคส','เข้างาน','ออกงาน','OT (ชม.:นาที)','คอมสาขา','คอมรายวัน','ไม่เข้างาน'];
+    const head = ['วันที่','ยอดขาย','เคส','เข้างาน','ออกงาน','OT (ชม.:นาที)','คอมสาขา','คอมรายวัน','รูปแบบกะ'];
     return { head, body, foot };
   },
   async dailyXlsx(){
@@ -2985,9 +3066,8 @@ const AdminView = {
   dailyTotals(rows, isMobile){
     rows = rows || [];
     const sum = (f)=>rows.reduce((a,r)=>a+U.num(r[f]),0);
-    const mins = Math.round(sum('ot')*60);
-    return { sales:sum('sales'), cases:sum('cases'), com:sum('com'),
-      ot: Math.floor(mins/60) + Daily.roundOtFraction(mins%60),
+    return { sales:sum('sales')+sum('sales2'), cases:sum('cases'), com:sum('com'),
+      ot: Daily.otTotals(rows).ot,
       avg: (()=>{
         // เภสัชโมบาย: เฉลี่ย/วัน นับเฉพาะสาขา 1–6 (ตรงกับหน้าของเจ้าตัว)
         const src = isMobile ? rows.filter(r=>U.num(r.sales)>0 && MOBILE_AVG_BRANCHES.includes(Number(r.branch)))
@@ -3024,7 +3104,8 @@ const AdminView = {
       <div class="exp-dialog av-dialog" role="dialog">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
           <div><div class="exp-title">${Export._esc(name)}</div>
-          <div class="exp-file">${isPharm?(isMobile?'เภสัชโมบาย (เฉลี่ย/วัน นับสาขา 1–6)':'เภสัชกร'):'พนักงาน'} · เดือน ${Export._esc(month)} · ดูอย่างเดียว</div></div>
+          <div class="exp-file">${isPharm?(isMobile?'เภสัชโมบาย (เฉลี่ย/วัน นับสาขา 1–6)':'เภสัชกร'):'พนักงาน'} · เดือน ${Export._esc(month)} · ดูอย่างเดียว</div>
+          ${(d.salary?.flags||[]).length?`<div class="hint" style="color:#b45309; margin-top:4px">⚠️ รอแอดมินตัดสินใจ:<br>${d.salary.flags.map(Export._esc).join('<br>')}</div>`:''}</div>
           <button class="btn small secondary" data-av="close">✕ ปิด</button>
         </div>
         <div class="av-tabs">
